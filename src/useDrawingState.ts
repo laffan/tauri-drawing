@@ -30,6 +30,12 @@ export interface EditingText {
   color: string;
 }
 
+export type ResizeHandle =
+  | "nw" | "ne" | "sw" | "se"  // corners
+  | "n" | "s" | "e" | "w";     // edges
+
+const HANDLE_SIZE = 8; // px in canvas space
+
 export function useDrawingState() {
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Point[] | null>(null);
@@ -43,8 +49,6 @@ export function useDrawingState() {
   const [editingText, setEditingText] = useState<EditingText | null>(null);
   const [bookmarks, setBookmarks] = useState<CameraBookmark[]>([]);
   const [brainstormMode, setBrainstormMode] = useState(false);
-
-  // For drag-area creation
   const [creatingDragArea, setCreatingDragArea] = useState<{
     start: Point;
     end: Point;
@@ -55,6 +59,17 @@ export function useDrawingState() {
   const cameraStart = useRef<Camera>({ x: 0, y: 0, zoom: 1 });
   const isDrawing = useRef(false);
   const selectStart = useRef<Point | null>(null);
+
+  // Drag state
+  const isDragging = useRef(false);
+  const dragStart = useRef<Point>({ x: 0, y: 0 });
+
+  // Resize state
+  const isResizing = useRef(false);
+  const resizeHandle = useRef<ResizeHandle | null>(null);
+  const resizeStart = useRef<Point>({ x: 0, y: 0 });
+  const resizeOrigBounds = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null);
+  const resizeShapeId = useRef<string | null>(null);
 
   // === Text commit ===
   const commitText = useCallback((editing: EditingText) => {
@@ -91,6 +106,40 @@ export function useDrawingState() {
     });
   }, []);
 
+  // === Resize handle hit test ===
+  function hitTestResizeHandles(
+    canvasPt: Point,
+    currentShapes: Shape[],
+    currentSelectedIds: Set<string>,
+    zoom: number,
+  ): { shapeId: string; handle: ResizeHandle } | null {
+    const handleRadius = (HANDLE_SIZE / 2) / zoom + 2;
+    for (const shape of currentShapes) {
+      if (!currentSelectedIds.has(shape.id)) continue;
+      // Only shapes that have meaningful bounds to resize
+      if (shape.type === "draw") continue;
+
+      const b = getShapeBounds(shape);
+      const pad = 6;
+      const x1 = b.minX - pad, y1 = b.minY - pad;
+      const x2 = b.maxX + pad, y2 = b.maxY + pad;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+
+      const corners: [number, number, ResizeHandle][] = [
+        [x1, y1, "nw"], [x2, y1, "ne"], [x1, y2, "sw"], [x2, y2, "se"],
+        [mx, y1, "n"], [mx, y2, "s"], [x1, my, "w"], [x2, my, "e"],
+      ];
+      for (const [hx, hy, handle] of corners) {
+        const dx = canvasPt.x - hx;
+        const dy = canvasPt.y - hy;
+        if (Math.sqrt(dx * dx + dy * dy) < handleRadius) {
+          return { shapeId: shape.id, handle };
+        }
+      }
+    }
+    return null;
+  }
+
   // === Pointer handlers ===
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -113,12 +162,8 @@ export function useDrawingState() {
 
       if (e.button !== 0) return;
 
-      // Don't capture pointer when we're about to create a text editor —
-      // pointer capture steals focus from the textarea that appears
-      const willEditText =
-        tool === "text" ||
-        brainstormMode ||
-        (tool === "select" && false); // double-click handled separately
+      // Don't capture pointer when we're about to create a text editor
+      const willEditText = tool === "text" || brainstormMode;
       if (!willEditText) {
         canvas.setPointerCapture(e.pointerId);
       }
@@ -144,8 +189,6 @@ export function useDrawingState() {
         if (hitShape && hitShape.type === "text") {
           startEditingExistingText(hitShape);
         } else {
-          // Find if clicking inside a drag area to auto-parent
-          const dragArea = findDragAreaAtPoint(canvasPt, shapes);
           setEditingText({
             shapeId: null,
             position: canvasPt,
@@ -153,12 +196,23 @@ export function useDrawingState() {
             fontSize,
             color,
           });
-          // Store parent info in a ref or handle when committing
-          if (dragArea) {
-            // We'll handle parenting in commitText via position check
-          }
         }
       } else if (tool === "select") {
+        // Check resize handles first
+        const handleHit = hitTestResizeHandles(canvasPt, shapes, selectedIds, camera.zoom);
+        if (handleHit) {
+          isResizing.current = true;
+          resizeHandle.current = handleHit.handle;
+          resizeShapeId.current = handleHit.shapeId;
+          resizeStart.current = canvasPt;
+          const shape = shapes.find((s) => s.id === handleHit.shapeId);
+          if (shape) {
+            const b = getShapeBounds(shape);
+            resizeOrigBounds.current = { ...b };
+          }
+          return;
+        }
+
         const hitShape = findShapeAtPoint(canvasPt, shapes);
         if (hitShape) {
           if (e.shiftKey) {
@@ -175,6 +229,9 @@ export function useDrawingState() {
             if (!selectedIds.has(hitShape.id)) {
               setSelectedIds(new Set([hitShape.id]));
             }
+            // Start dragging
+            isDragging.current = true;
+            dragStart.current = canvasPt;
           }
         } else {
           if (!e.shiftKey) setSelectedIds(new Set());
@@ -188,18 +245,7 @@ export function useDrawingState() {
         setCreatingDragArea({ start: canvasPt, end: canvasPt });
       }
     },
-    [
-      camera,
-      tool,
-      shapes,
-      editingText,
-      commitText,
-      startEditingExistingText,
-      fontSize,
-      color,
-      selectedIds,
-      brainstormMode,
-    ]
+    [camera, tool, shapes, editingText, commitText, startEditingExistingText, fontSize, color, selectedIds, brainstormMode]
   );
 
   const handleDoubleClick = useCallback(
@@ -240,6 +286,38 @@ export function useDrawingState() {
         return;
       }
 
+      // Dragging selected shapes
+      if (isDragging.current && tool === "select") {
+        const dx = canvasPt.x - dragStart.current.x;
+        const dy = canvasPt.y - dragStart.current.y;
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+          dragStart.current = canvasPt;
+          setShapes((prev) =>
+            prev.map((s) => {
+              if (!selectedIds.has(s.id)) return s;
+              return moveShape(s, dx, dy);
+            })
+          );
+        }
+        return;
+      }
+
+      // Resizing
+      if (isResizing.current && resizeShapeId.current && resizeOrigBounds.current) {
+        const dx = canvasPt.x - resizeStart.current.x;
+        const dy = canvasPt.y - resizeStart.current.y;
+        const handle = resizeHandle.current!;
+        const orig = resizeOrigBounds.current;
+
+        setShapes((prev) =>
+          prev.map((s) => {
+            if (s.id !== resizeShapeId.current) return s;
+            return applyResize(s, handle, orig, dx, dy);
+          })
+        );
+        return;
+      }
+
       if (tool === "draw" && isDrawing.current) {
         setCurrentStroke((prev) => (prev ? [...prev, canvasPt] : [canvasPt]));
       } else if (tool === "select" && selectStart.current) {
@@ -250,7 +328,7 @@ export function useDrawingState() {
         setCreatingDragArea({ ...creatingDragArea, end: canvasPt });
       }
     },
-    [camera, tool, creatingDragArea]
+    [camera, tool, creatingDragArea, selectedIds]
   );
 
   const handlePointerUp = useCallback(
@@ -260,13 +338,26 @@ export function useDrawingState() {
         return;
       }
 
+      if (isDragging.current) {
+        isDragging.current = false;
+        return;
+      }
+
+      if (isResizing.current) {
+        isResizing.current = false;
+        resizeHandle.current = null;
+        resizeShapeId.current = null;
+        resizeOrigBounds.current = null;
+        return;
+      }
+
       if (tool === "draw" && isDrawing.current && currentStroke) {
         const dragArea = findDragAreaAtPoint(currentStroke[0], shapes);
         const newShape: DrawShape = {
           id: generateId(),
           type: "draw",
           points: currentStroke,
-          color: "#ffb3ba", // light-red default for draw, like ratchet
+          color: "#ffb3ba",
           width: strokeWidth,
           parentId: dragArea?.id,
         };
@@ -308,7 +399,6 @@ export function useDrawingState() {
             backgroundColor: "rgba(107, 114, 128, 0.16)",
             borderRadius: 12,
           };
-          // Auto-parent any shapes inside the new area
           const areaBounds = getShapeBounds(newArea);
           setShapes((prev) => {
             const updated = prev.map((s) => {
@@ -359,7 +449,6 @@ export function useDrawingState() {
 
   const deleteSelected = useCallback(() => {
     setShapes((prev) => {
-      // When deleting a drag area, unparent its children
       const deletingIds = new Set(selectedIds);
       return prev
         .filter((s) => !deletingIds.has(s.id))
@@ -377,9 +466,7 @@ export function useDrawingState() {
     (colorName: string) => {
       const hex = COLOR_PALETTE[colorName] || colorName;
       setShapes((prev) =>
-        prev.map((s) =>
-          selectedIds.has(s.id) ? { ...s, color: hex } : s
-        )
+        prev.map((s) => (selectedIds.has(s.id) ? { ...s, color: hex } : s))
       );
     },
     [selectedIds]
@@ -391,28 +478,17 @@ export function useDrawingState() {
         prev.map((s) => {
           if (!selectedIds.has(s.id)) return s;
           if (s.type === "text") {
-            return {
-              ...s,
-              backgroundColor: colorName === "reset" ? undefined : colorName,
-            };
+            return { ...s, backgroundColor: colorName === "reset" ? undefined : colorName };
           }
           if (s.type === "drag-area") {
             if (colorName === "reset") {
-              return {
-                ...s,
-                strokeColor: "#6b7280",
-                backgroundColor: "rgba(107, 114, 128, 0.16)",
-              };
+              return { ...s, strokeColor: "#6b7280", backgroundColor: "rgba(107, 114, 128, 0.16)" };
             }
             const hex = COLOR_PALETTE[colorName] || "#6b7280";
             const r = parseInt(hex.slice(1, 3), 16);
             const g = parseInt(hex.slice(3, 5), 16);
             const b = parseInt(hex.slice(5, 7), 16);
-            return {
-              ...s,
-              strokeColor: hex,
-              backgroundColor: `rgba(${r}, ${g}, ${b}, 0.16)`,
-            };
+            return { ...s, strokeColor: hex, backgroundColor: `rgba(${r}, ${g}, ${b}, 0.16)` };
           }
           return s;
         })
@@ -437,10 +513,7 @@ export function useDrawingState() {
   // === Bookmarks ===
   const addBookmark = useCallback(
     (name: string) => {
-      setBookmarks((prev) => [
-        ...prev,
-        { id: generateId(), name, camera: { ...camera } },
-      ]);
+      setBookmarks((prev) => [...prev, { id: generateId(), name, camera: { ...camera } }]);
     },
     [camera]
   );
@@ -467,7 +540,7 @@ export function useDrawingState() {
         dw = dh * aspect;
       }
 
-      const pos = position || screenToCanvas({ x: 400, y: 400 }, camera);
+      const pos = position || screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, camera);
       const newShape: ImageShape = {
         id: generateId(),
         type: "image",
@@ -522,7 +595,6 @@ export function useDrawingState() {
       const bounds = getShapeBounds(shape);
       const cx = (bounds.minX + bounds.maxX) / 2;
       const cy = (bounds.minY + bounds.maxY) / 2;
-      // Center shape in viewport
       setCamera((cam) => ({
         x: window.innerWidth / 2 - cx * cam.zoom,
         y: window.innerHeight / 2 - cy * cam.zoom,
@@ -533,7 +605,6 @@ export function useDrawingState() {
     [shapes]
   );
 
-  // Move selected text shapes to shelf (delete from canvas, return text)
   const moveSelectedToShelf = useCallback((): string[] => {
     const texts: string[] = [];
     setShapes((prev) => {
@@ -595,18 +666,15 @@ export function useDrawingState() {
   };
 }
 
+// === Helpers ===
+
 function findShapeAtPoint(pt: Point, shapes: Shape[]): Shape | null {
   for (let i = shapes.length - 1; i >= 0; i--) {
-    if (shapes[i].type === "drag-area") continue; // drag areas are background
-    if (hitTestShape(pt, shapes[i])) {
-      return shapes[i];
-    }
+    if (shapes[i].type === "drag-area") continue;
+    if (hitTestShape(pt, shapes[i])) return shapes[i];
   }
-  // Check drag areas last
   for (let i = shapes.length - 1; i >= 0; i--) {
-    if (shapes[i].type === "drag-area" && hitTestShape(pt, shapes[i])) {
-      return shapes[i];
-    }
+    if (shapes[i].type === "drag-area" && hitTestShape(pt, shapes[i])) return shapes[i];
   }
   return null;
 }
@@ -617,5 +685,77 @@ function normalizeBox(box: SelectionBox) {
     minY: Math.min(box.start.y, box.end.y),
     maxX: Math.max(box.start.x, box.end.x),
     maxY: Math.max(box.start.y, box.end.y),
+  };
+}
+
+/** Move a shape by dx, dy */
+function moveShape(shape: Shape, dx: number, dy: number): Shape {
+  switch (shape.type) {
+    case "draw":
+      return { ...shape, points: shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
+    case "text":
+    case "image":
+    case "drag-area":
+      return { ...shape, position: { x: shape.position.x + dx, y: shape.position.y + dy } };
+  }
+}
+
+/** Apply a resize delta from a handle drag to a shape */
+function applyResize(
+  shape: Shape,
+  handle: ResizeHandle,
+  orig: { minX: number; minY: number; maxX: number; maxY: number },
+  dx: number,
+  dy: number,
+): Shape {
+  // Compute new bounds based on handle
+  let { minX, minY, maxX, maxY } = orig;
+  if (handle.includes("w")) minX += dx;
+  if (handle.includes("e")) maxX += dx;
+  if (handle.includes("n")) minY += dy;
+  if (handle.includes("s")) maxY += dy;
+
+  // Enforce minimum size
+  const minW = 20, minH = 20;
+  if (maxX - minX < minW) { if (handle.includes("w")) minX = maxX - minW; else maxX = minX + minW; }
+  if (maxY - minY < minH) { if (handle.includes("n")) minY = maxY - minH; else maxY = minY + minH; }
+
+  const newW = maxX - minX;
+  const newH = maxY - minY;
+
+  switch (shape.type) {
+    case "text": {
+      // Scale font size proportionally to height change
+      const origH = orig.maxY - orig.minY;
+      const scale = origH > 0 ? newH / origH : 1;
+      const newFontSize = Math.max(8, Math.min(200, shape.fontSize * scale));
+      return { ...shape, position: { x: minX, y: minY }, fontSize: newFontSize };
+    }
+    case "image":
+      return { ...shape, position: { x: minX, y: minY }, width: newW, height: newH };
+    case "drag-area":
+      return { ...shape, position: { x: minX, y: minY }, width: newW, height: newH };
+    case "draw":
+      // Scale all points to fit new bounds
+      return scaleDrawShape(shape, orig, { minX, minY, maxX, maxY });
+  }
+}
+
+function scaleDrawShape(
+  shape: DrawShape,
+  orig: { minX: number; minY: number; maxX: number; maxY: number },
+  target: { minX: number; minY: number; maxX: number; maxY: number },
+): DrawShape {
+  const ow = orig.maxX - orig.minX || 1;
+  const oh = orig.maxY - orig.minY || 1;
+  const tw = target.maxX - target.minX;
+  const th = target.maxY - target.minY;
+
+  return {
+    ...shape,
+    points: shape.points.map((p) => ({
+      x: target.minX + ((p.x - orig.minX) / ow) * tw,
+      y: target.minY + ((p.y - orig.minY) / oh) * th,
+    })),
   };
 }

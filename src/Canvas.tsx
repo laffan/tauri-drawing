@@ -120,7 +120,7 @@ export function Canvas({
     if (selectedIds.size > 0) {
       for (const shape of shapes) {
         if (selectedIds.has(shape.id)) {
-          drawSelectionHighlight(ctx, shape);
+          drawSelectionHighlight(ctx, shape, camera.zoom);
         }
       }
     }
@@ -310,20 +310,38 @@ function drawImageShape(
   }
 }
 
-function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape) {
+function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape, zoom: number) {
   const bounds = getShapeBounds(shape);
   const pad = 6;
+  const x1 = bounds.minX - pad;
+  const y1 = bounds.minY - pad;
+  const w = bounds.maxX - bounds.minX + pad * 2;
+  const h = bounds.maxY - bounds.minY + pad * 2;
+
   ctx.save();
   ctx.strokeStyle = "#4285f4";
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 4]);
-  ctx.strokeRect(
-    bounds.minX - pad,
-    bounds.minY - pad,
-    bounds.maxX - bounds.minX + pad * 2,
-    bounds.maxY - bounds.minY + pad * 2
-  );
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.setLineDash([4 / zoom, 4 / zoom]);
+  ctx.strokeRect(x1, y1, w, h);
   ctx.setLineDash([]);
+
+  // Draw resize handles (corners + edge midpoints)
+  const handleSize = 7 / zoom;
+  const half = handleSize / 2;
+  const mx = x1 + w / 2;
+  const my = y1 + h / 2;
+  const handles: [number, number][] = [
+    [x1, y1], [x1 + w, y1], [x1, y1 + h], [x1 + w, y1 + h],  // corners
+    [mx, y1], [mx, y1 + h], [x1, my], [x1 + w, my],            // edges
+  ];
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "#4285f4";
+  ctx.lineWidth = 1.5 / zoom;
+  for (const [hx, hy] of handles) {
+    ctx.fillRect(hx - half, hy - half, handleSize, handleSize);
+    ctx.strokeRect(hx - half, hy - half, handleSize, handleSize);
+  }
+
   ctx.restore();
 }
 
