@@ -9,7 +9,8 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #fff;
+  background: #f4f5f7;
+  color: #0f0f0f;
 }
 
 button:disabled {
@@ -33,4 +34,16 @@ textarea.inline-text-editor:focus {
   padding: 0;
   margin: 0;
   box-shadow: none;
+}
+
+/* Scrollbar styling for shelf */
+.shelf-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.shelf-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.shelf-scroll::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 2px;
 }

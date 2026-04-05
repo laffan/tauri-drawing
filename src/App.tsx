@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "./Canvas";
 import { Toolbar } from "./Toolbar";
+import { SelectionToolbar } from "./SelectionToolbar";
+import { ShelfPanel } from "./ShelfPanel";
+import { BookmarksPanel } from "./BookmarksPanel";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
 import { useDrawingState } from "./useDrawingState";
 import { canvasToScreen } from "./utils";
@@ -9,8 +12,23 @@ function App() {
   const state = useDrawingState();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  const [shelfOpen, setShelfOpen] = useState(false);
+  const [shelfItems, setShelfItems] = useState<string[]>([]);
 
-  // Focus textarea when editing starts, place cursor at end
+  // Image cache for rendering
+  const imageCache = useMemo(() => {
+    const cache = new Map<string, HTMLImageElement>();
+    for (const shape of state.shapes) {
+      if (shape.type === "image" && !cache.has(shape.id)) {
+        const img = new Image();
+        img.src = shape.dataUrl;
+        cache.set(shape.id, img);
+      }
+    }
+    return cache;
+  }, [state.shapes]);
+
+  // Focus textarea when editing starts
   useEffect(() => {
     if (state.editingText && textareaRef.current) {
       const ta = textareaRef.current;
@@ -19,13 +37,12 @@ function App() {
     }
   }, [state.editingText !== null]);
 
-  // Auto-resize textarea to match content using the hidden measure div
+  // Auto-resize textarea
   useEffect(() => {
-    if (!state.editingText || !textareaRef.current || !measureRef.current) return;
+    if (!state.editingText || !textareaRef.current || !measureRef.current)
+      return;
     const measure = measureRef.current;
-    // Use content + a trailing character so empty lines still have height
     measure.textContent = state.editingText.text || "\u00A0";
-    // Sync trailing newline: add a zero-width space so the div expands
     if (state.editingText.text.endsWith("\n")) {
       measure.textContent += "\u00A0";
     }
@@ -43,39 +60,140 @@ function App() {
         }
         return;
       }
-      if (e.target instanceof HTMLInputElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
 
-      switch (e.key.toLowerCase()) {
-        case "d":
+      switch (e.key) {
+        case "1":
+          state.setTool("select");
+          state.setBrainstormMode(false);
+          break;
+        case "2":
+          state.setTool("hand");
+          state.setBrainstormMode(false);
+          break;
+        case "3":
           state.setTool("draw");
+          state.setBrainstormMode(false);
           break;
         case "t":
+        case "T":
           state.setTool("text");
-          break;
-        case "s":
-          state.setTool("select");
+          state.setBrainstormMode(false);
           break;
         case "e":
+        case "E":
           state.setTool("erase");
+          state.setBrainstormMode(false);
           break;
-        case "delete":
-        case "backspace":
-          state.deleteSelected();
-          break;
-        case "g":
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            if (e.shiftKey) {
-              state.ungroupSelected();
-            } else {
-              state.groupSelected();
-            }
+        case "a":
+        case "A":
+          if (!e.ctrlKey && !e.metaKey) {
+            state.setTool("drag-area");
+            state.setBrainstormMode(false);
           }
+          break;
+        case "b":
+        case "B":
+          if (!e.ctrlKey && !e.metaKey) {
+            state.setBrainstormMode(!state.brainstormMode);
+            if (!state.brainstormMode) state.setTool("text");
+          }
+          break;
+        case "Delete":
+        case "Backspace":
+          state.deleteSelected();
           break;
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [state]);
+
+  // Paste handler
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      )
+        return;
+      if (state.editingText) return;
+
+      e.preventDefault();
+      const clipboardData = e.clipboardData;
+      if (!clipboardData) return;
+
+      // Handle images
+      const items = Array.from(clipboardData.items);
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            const dataUrl = await fileToDataUrl(file);
+            const dims = await getImageDimensions(dataUrl);
+            state.addImageShape(dataUrl, file.name, dims.width, dims.height);
+            return;
+          }
+        }
+      }
+
+      // Handle text
+      if (clipboardData.types.includes("text/plain")) {
+        const text = clipboardData.getData("text/plain");
+        if (text.trim()) {
+          state.addTextShapeAtCenter(text);
+        }
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [state]);
+
+  // Drop handler
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      if (!e.dataTransfer) return;
+
+      // Handle files
+      const files = Array.from(e.dataTransfer.files);
+      for (const file of files) {
+        if (file.type.startsWith("image/")) {
+          const dataUrl = await fileToDataUrl(file);
+          const dims = await getImageDimensions(dataUrl);
+          state.addImageShape(dataUrl, file.name, dims.width, dims.height);
+        } else if (
+          file.type === "text/plain" ||
+          file.name.endsWith(".txt") ||
+          file.name.endsWith(".md")
+        ) {
+          const text = await file.text();
+          if (text.trim()) state.addTextShapeAtCenter(text);
+        }
+      }
+
+      // Handle dragged text
+      if (files.length === 0) {
+        const text = e.dataTransfer.getData("text/plain");
+        if (text && text.trim()) {
+          state.addTextShapeAtCenter(text);
+        }
+      }
+    };
+
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+    return () => {
+      document.removeEventListener("dragover", handleDragOver);
+      document.removeEventListener("drop", handleDrop);
+    };
   }, [state]);
 
   const handleTextChange = useCallback(
@@ -92,14 +210,24 @@ function App() {
     state.setEditingText(null);
   }, [state]);
 
+  const handleMoveToShelf = useCallback(() => {
+    const texts = state.moveSelectedToShelf();
+    if (texts.length > 0) {
+      setShelfItems((prev) => [...texts, ...prev]);
+      setShelfOpen(true);
+    }
+  }, [state]);
+
   const cursorMap: Record<string, string> = {
+    select: "default",
+    hand: "grab",
     draw: "crosshair",
     text: "text",
-    select: "default",
     erase: "pointer",
+    "drag-area": "crosshair",
+    brainstorm: "text",
   };
 
-  // Shared font styles that match canvas drawText exactly
   const scaledFontSize = state.editingText
     ? state.editingText.fontSize * state.camera.zoom
     : 0;
@@ -119,42 +247,51 @@ function App() {
   }
 
   return (
-    <div style={{ width: "100vw", height: "100vh", overflow: "hidden", position: "relative" }}>
-      <Toolbar
-        tool={state.tool}
-        setTool={state.setTool}
-        color={state.color}
-        setColor={state.setColor}
-        strokeWidth={state.strokeWidth}
-        setStrokeWidth={state.setStrokeWidth}
-        fontSize={state.fontSize}
-        setFontSize={state.setFontSize}
-        hasSelection={state.selectedIds.size > 0}
-        onDelete={state.deleteSelected}
-        onGroup={state.groupSelected}
-        onUngroup={state.ungroupSelected}
-        onChangeColor={state.changeSelectedColor}
-        onResetView={() => state.setCamera({ x: 0, y: 0, zoom: 1 })}
-      />
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        overflow: "hidden",
+        position: "relative",
+        background: "#f4f5f7",
+      }}
+    >
       <Canvas
         shapes={state.shapes}
         currentStroke={state.currentStroke}
         selectedIds={state.selectedIds}
         camera={state.camera}
         selectionBox={state.selectionBox}
+        creatingDragArea={state.creatingDragArea}
         color={state.color}
         strokeWidth={state.strokeWidth}
         editingShapeId={state.editingText?.shapeId ?? null}
+        imageCache={imageCache}
         onPointerDown={state.handlePointerDown}
         onPointerMove={state.handlePointerMove}
         onPointerUp={state.handlePointerUp}
         onDoubleClick={state.handleDoubleClick}
         onWheel={state.handleWheel}
-        toolCursor={cursorMap[state.tool]}
+        toolCursor={
+          state.brainstormMode ? "text" : cursorMap[state.tool]
+        }
       />
+
+      {/* Selection context toolbar */}
+      <SelectionToolbar
+        shapes={state.shapes}
+        selectedIds={state.selectedIds}
+        camera={state.camera}
+        onChangeColor={state.changeSelectedColor}
+        onChangeBackground={state.changeSelectedBackground}
+        onDelete={state.deleteSelected}
+        onAlign={state.alignSelected}
+        onMoveToShelf={handleMoveToShelf}
+      />
+
+      {/* Inline text editor */}
       {state.editingText && (
         <>
-          {/* Hidden div that mirrors textarea content for measuring true size */}
           <div
             ref={measureRef}
             aria-hidden
@@ -169,7 +306,6 @@ function App() {
               pointerEvents: "none",
             }}
           />
-          {/* Invisible textarea that sits exactly where canvas text renders */}
           <textarea
             ref={textareaRef}
             className="inline-text-editor"
@@ -180,7 +316,7 @@ function App() {
               ...fontStyles,
               position: "absolute",
               left: screenPos.x,
-              top: screenPos.y + 48,
+              top: screenPos.y,
               color: state.editingText.color,
               caretColor: state.editingText.color,
               background: "transparent",
@@ -198,10 +334,50 @@ function App() {
           />
         </>
       )}
+
+      {/* Bottom toolbar */}
+      <Toolbar
+        tool={state.tool}
+        setTool={state.setTool}
+        brainstormMode={state.brainstormMode}
+        setBrainstormMode={state.setBrainstormMode}
+        onResetView={() => state.setCamera({ x: 0, y: 0, zoom: 1 })}
+      />
+
+      {/* Bookmarks */}
+      <BookmarksPanel
+        bookmarks={state.bookmarks}
+        onAdd={state.addBookmark}
+        onGo={state.goToBookmark}
+        onDelete={state.deleteBookmark}
+      />
+
+      {/* Shelf */}
+      <ShelfPanel
+        shapes={state.shapes}
+        isOpen={shelfOpen}
+        onToggle={() => setShelfOpen(!shelfOpen)}
+        onFocusShape={state.focusShape}
+        shelfItems={shelfItems}
+        onRemoveShelfItem={(i) =>
+          setShelfItems((prev) => prev.filter((_, idx) => idx !== i))
+        }
+      />
+
+      {/* Status bar */}
       <div style={styles.statusBar}>
-        <span>Zoom: {Math.round(state.camera.zoom * 100)}%</span>
-        <span>Shapes: {state.shapes.length}</span>
-        {state.selectedIds.size > 0 && <span>Selected: {state.selectedIds.size}</span>}
+        <span>{Math.round(state.camera.zoom * 100)}%</span>
+        <span>
+          {state.shapes.length} shape{state.shapes.length !== 1 ? "s" : ""}
+        </span>
+        {state.selectedIds.size > 0 && (
+          <span>{state.selectedIds.size} selected</span>
+        )}
+        {state.brainstormMode && (
+          <span style={{ color: "#4285f4", fontWeight: 600 }}>
+            💡 Brainstorm
+          </span>
+        )}
       </div>
     </div>
   );
@@ -212,18 +388,40 @@ const styles: Record<string, React.CSSProperties> = {
     position: "absolute",
     bottom: 0,
     left: 0,
-    right: 0,
-    height: 28,
     display: "flex",
     alignItems: "center",
     padding: "0 12px",
     gap: 16,
-    background: "#f8f9fa",
-    borderTop: "1px solid #dee2e6",
+    height: 24,
     fontSize: 11,
     color: "#868e96",
-    zIndex: 100,
+    zIndex: 50,
+    background: "rgba(255,255,255,0.7)",
+    borderRadius: "0 8px 0 0",
   },
 };
+
+// === Helpers ===
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function getImageDimensions(
+  dataUrl: string
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = dataUrl;
+  });
+}
 
 export default App;

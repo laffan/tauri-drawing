@@ -1,5 +1,5 @@
-import { LINE_HEIGHT_RATIO } from "./types";
-import type { Bounds, Camera, Point, Shape } from "./types";
+import { LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
+import type { Bounds, Camera, DragAreaShape, Point, Shape } from "./types";
 
 let nextId = 0;
 export function generateId(): string {
@@ -20,16 +20,37 @@ export function canvasToScreen(canvasPoint: Point, camera: Camera): Point {
   };
 }
 
+// === Bounds ===
+
 export function getShapeBounds(shape: Shape): Bounds {
-  if (shape.type === "draw") {
-    return getPointsBounds(shape.points);
+  switch (shape.type) {
+    case "draw":
+      return getPointsBounds(shape.points);
+    case "text":
+      return getTextBounds(shape.position, shape.text, shape.fontSize);
+    case "image":
+      return {
+        minX: shape.position.x,
+        minY: shape.position.y,
+        maxX: shape.position.x + shape.width,
+        maxY: shape.position.y + shape.height,
+      };
+    case "drag-area":
+      return {
+        minX: shape.position.x,
+        minY: shape.position.y,
+        maxX: shape.position.x + shape.width,
+        maxY: shape.position.y + shape.height,
+      };
   }
-  return getTextBounds(shape);
 }
 
 export function getPointsBounds(points: Point[]): Bounds {
   if (points.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const p of points) {
     if (p.x < minX) minX = p.x;
     if (p.y < minY) minY = p.y;
@@ -39,25 +60,35 @@ export function getPointsBounds(points: Point[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
-export function getTextBounds(shape: { position: Point; text: string; fontSize: number }): Bounds {
-  const lines = shape.text.split("\n");
-  const lineHeight = shape.fontSize * LINE_HEIGHT_RATIO;
-  const widthPerChar = shape.fontSize * 0.6;
+export function getTextBounds(
+  position: Point,
+  text: string,
+  fontSize: number
+): Bounds {
+  const lines = text.split("\n");
+  const lineHeight = fontSize * LINE_HEIGHT_RATIO;
+  const widthPerChar = fontSize * 0.6;
   const maxLineWidth = Math.max(...lines.map((l) => l.length)) * widthPerChar;
   const height = lines.length * lineHeight;
   return {
-    minX: shape.position.x,
-    minY: shape.position.y,
-    maxX: shape.position.x + Math.max(maxLineWidth, 20),
-    maxY: shape.position.y + Math.max(height, lineHeight),
+    minX: position.x,
+    minY: position.y,
+    maxX: position.x + Math.max(maxLineWidth, 20),
+    maxY: position.y + Math.max(height, lineHeight),
   };
 }
 
 export function boundsOverlap(a: Bounds, b: Bounds): boolean {
-  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+  return (
+    a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY
+  );
 }
 
-export function pointInBounds(point: Point, bounds: Bounds, padding = 8): boolean {
+export function pointInBounds(
+  point: Point,
+  bounds: Bounds,
+  padding = 8
+): boolean {
   return (
     point.x >= bounds.minX - padding &&
     point.x <= bounds.maxX + padding &&
@@ -66,11 +97,13 @@ export function pointInBounds(point: Point, bounds: Bounds, padding = 8): boolea
   );
 }
 
+// === Hit testing ===
+
 export function hitTestShape(point: Point, shape: Shape): boolean {
   if (shape.type === "draw") {
     return distanceToStroke(point, shape.points) < 12;
   }
-  return pointInBounds(point, getTextBounds(shape), 4);
+  return pointInBounds(point, getShapeBounds(shape), 4);
 }
 
 export function distanceToStroke(point: Point, points: Point[]): number {
@@ -103,4 +136,120 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   const ex = p.x - projX;
   const ey = p.y - projY;
   return Math.sqrt(ex * ex + ey * ey);
+}
+
+// === Drag area helpers ===
+
+export function findDragAreaAtPoint(
+  point: Point,
+  shapes: Shape[]
+): DragAreaShape | null {
+  // Search in reverse (topmost first), only drag areas
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    if (s.type === "drag-area" && pointInBounds(point, getShapeBounds(s), 0)) {
+      return s;
+    }
+  }
+  return null;
+}
+
+export function getChildrenOfDragArea(
+  dragAreaId: string,
+  shapes: Shape[]
+): Shape[] {
+  return shapes.filter((s) => s.parentId === dragAreaId);
+}
+
+export function resolveColor(colorName: string): string {
+  return COLOR_PALETTE[colorName] || colorName;
+}
+
+// === Alignment ===
+
+export function alignShapes(
+  shapes: Shape[],
+  direction: "left" | "center" | "right" | "top" | "middle" | "bottom"
+): Shape[] {
+  if (shapes.length < 2) return shapes;
+  const allBounds = shapes.map((s) => getShapeBounds(s));
+
+  let target: number;
+  switch (direction) {
+    case "left":
+      target = Math.min(...allBounds.map((b) => b.minX));
+      break;
+    case "right":
+      target = Math.max(...allBounds.map((b) => b.maxX));
+      break;
+    case "top":
+      target = Math.min(...allBounds.map((b) => b.minY));
+      break;
+    case "bottom":
+      target = Math.max(...allBounds.map((b) => b.maxY));
+      break;
+    case "center":
+      target =
+        (Math.min(...allBounds.map((b) => b.minX)) +
+          Math.max(...allBounds.map((b) => b.maxX))) /
+        2;
+      break;
+    case "middle":
+      target =
+        (Math.min(...allBounds.map((b) => b.minY)) +
+          Math.max(...allBounds.map((b) => b.maxY))) /
+        2;
+      break;
+  }
+
+  return shapes.map((s, i) => {
+    const b = allBounds[i];
+    const clone = { ...s };
+    switch (direction) {
+      case "left": {
+        const dx = target - b.minX;
+        return shiftShape(clone, dx, 0);
+      }
+      case "right": {
+        const dx = target - b.maxX;
+        return shiftShape(clone, dx, 0);
+      }
+      case "center": {
+        const cx = (b.minX + b.maxX) / 2;
+        return shiftShape(clone, target - cx, 0);
+      }
+      case "top": {
+        const dy = target - b.minY;
+        return shiftShape(clone, 0, dy);
+      }
+      case "bottom": {
+        const dy = target - b.maxY;
+        return shiftShape(clone, 0, dy);
+      }
+      case "middle": {
+        const cy = (b.minY + b.maxY) / 2;
+        return shiftShape(clone, 0, target - cy);
+      }
+    }
+  });
+}
+
+function shiftShape(shape: Shape, dx: number, dy: number): Shape {
+  switch (shape.type) {
+    case "draw":
+      return {
+        ...shape,
+        points: shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+      };
+    case "text":
+    case "image":
+    case "drag-area":
+      return {
+        ...shape,
+        position: {
+          x: shape.position.x + dx,
+          y: shape.position.y + dy,
+        },
+      };
+  }
 }

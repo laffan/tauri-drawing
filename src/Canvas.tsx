@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
-import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
-import type { Camera, Point, SelectionBox, Shape, TextShape } from "./types";
+import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
+import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import { getShapeBounds } from "./utils";
 
 interface CanvasProps {
@@ -9,9 +9,11 @@ interface CanvasProps {
   selectedIds: Set<string>;
   camera: Camera;
   selectionBox: SelectionBox | null;
+  creatingDragArea: { start: Point; end: Point } | null;
   color: string;
   strokeWidth: number;
   editingShapeId: string | null;
+  imageCache: Map<string, HTMLImageElement>;
   onPointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -26,9 +28,11 @@ export function Canvas({
   selectedIds,
   camera,
   selectionBox,
+  creatingDragArea,
   color,
   strokeWidth,
   editingShapeId,
+  imageCache,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -56,30 +60,63 @@ export function Canvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
+    // Background
+    ctx.fillStyle = "#f4f5f7";
+    ctx.fillRect(0, 0, w, h);
+
     drawGrid(ctx, camera, w, h);
 
     ctx.save();
     ctx.translate(camera.x, camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
-    // Draw all shapes
+    // Draw drag areas first (background)
     for (const shape of shapes) {
-      // Skip text being edited (the overlay handles it)
+      if (shape.type === "drag-area") {
+        drawDragArea(ctx, shape);
+      }
+    }
+
+    // Draw other shapes
+    for (const shape of shapes) {
+      if (shape.type === "drag-area") continue;
       if (shape.id === editingShapeId) continue;
 
       if (shape.type === "draw") {
         drawStroke(ctx, shape.points, shape.color, shape.width);
       } else if (shape.type === "text") {
-        drawText(ctx, shape);
+        drawTextShape(ctx, shape);
+      } else if (shape.type === "image") {
+        drawImageShape(ctx, shape, imageCache);
       }
     }
 
-    // Draw current stroke being drawn
+    // Current stroke
     if (currentStroke && currentStroke.length > 0) {
       drawStroke(ctx, currentStroke, color, strokeWidth);
     }
 
-    // Draw selection highlights
+    // Creating drag area preview
+    if (creatingDragArea) {
+      const { start, end } = creatingDragArea;
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const w = Math.abs(end.x - start.x);
+      const h = Math.abs(end.y - start.y);
+      ctx.save();
+      ctx.strokeStyle = "#6b7280";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 4]);
+      ctx.fillStyle = "rgba(107, 114, 128, 0.08)";
+      ctx.beginPath();
+      roundRect(ctx, x, y, w, h, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Selection highlights
     if (selectedIds.size > 0) {
       for (const shape of shapes) {
         if (selectedIds.has(shape.id)) {
@@ -90,10 +127,22 @@ export function Canvas({
 
     ctx.restore();
 
+    // Selection box in screen space
     if (selectionBox) {
       drawSelectionBox(ctx, selectionBox, camera);
     }
-  }, [shapes, currentStroke, selectedIds, camera, selectionBox, color, strokeWidth, editingShapeId]);
+  }, [
+    shapes,
+    currentStroke,
+    selectedIds,
+    camera,
+    selectionBox,
+    creatingDragArea,
+    color,
+    strokeWidth,
+    editingShapeId,
+    imageCache,
+  ]);
 
   useEffect(() => {
     const render = () => {
@@ -115,10 +164,10 @@ export function Canvas({
       ref={canvasRef}
       style={{
         position: "absolute",
-        top: 48,
+        top: 0,
         left: 0,
         width: "100%",
-        height: "calc(100% - 48px)",
+        height: "100%",
         cursor: toolCursor,
         touchAction: "none",
       }}
@@ -131,7 +180,49 @@ export function Canvas({
   );
 }
 
-function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color: string, width: number) {
+// === Draw helpers ===
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawDragArea(ctx: CanvasRenderingContext2D, shape: DragAreaShape) {
+  const { position, width, height, strokeColor, backgroundColor, borderRadius } = shape;
+  ctx.save();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 4]);
+  ctx.fillStyle = backgroundColor;
+  ctx.beginPath();
+  roundRect(ctx, position.x, position.y, width, height, borderRadius);
+  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawStroke(
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  color: string,
+  width: number
+) {
   if (points.length === 0) return;
   ctx.beginPath();
   ctx.strokeStyle = color;
@@ -157,9 +248,27 @@ function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color: strin
   ctx.stroke();
 }
 
-function drawText(ctx: CanvasRenderingContext2D, shape: TextShape) {
+function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
   const lines = shape.text.split("\n");
   const lineHeight = shape.fontSize * LINE_HEIGHT_RATIO;
+
+  // Draw background if set
+  if (shape.backgroundColor) {
+    const hex = COLOR_PALETTE[shape.backgroundColor] || shape.backgroundColor;
+    const bounds = getShapeBounds(shape);
+    const pad = 4;
+    ctx.save();
+    ctx.fillStyle = hex;
+    ctx.globalAlpha = 0.3;
+    ctx.fillRect(
+      bounds.minX - pad,
+      bounds.minY - pad,
+      bounds.maxX - bounds.minX + pad * 2,
+      bounds.maxY - bounds.minY + pad * 2
+    );
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 
   ctx.save();
   ctx.font = `${shape.fontSize}px ${FONT_FAMILY}`;
@@ -172,11 +281,40 @@ function drawText(ctx: CanvasRenderingContext2D, shape: TextShape) {
   ctx.restore();
 }
 
+function drawImageShape(
+  ctx: CanvasRenderingContext2D,
+  shape: ImageShape,
+  imageCache: Map<string, HTMLImageElement>
+) {
+  const img = imageCache.get(shape.id);
+  if (img && img.complete) {
+    ctx.drawImage(img, shape.position.x, shape.position.y, shape.width, shape.height);
+  } else {
+    // Placeholder
+    ctx.save();
+    ctx.fillStyle = "#e5e7eb";
+    ctx.fillRect(shape.position.x, shape.position.y, shape.width, shape.height);
+    ctx.strokeStyle = "#9ca3af";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(shape.position.x, shape.position.y, shape.width, shape.height);
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      shape.name || "Image",
+      shape.position.x + shape.width / 2,
+      shape.position.y + shape.height / 2
+    );
+    ctx.restore();
+  }
+}
+
 function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape) {
   const bounds = getShapeBounds(shape);
   const pad = 6;
   ctx.save();
-  ctx.strokeStyle = "#228be6";
+  ctx.strokeStyle = "#4285f4";
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 4]);
   ctx.strokeRect(
@@ -189,15 +327,19 @@ function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape) {
   ctx.restore();
 }
 
-function drawSelectionBox(ctx: CanvasRenderingContext2D, box: SelectionBox, camera: Camera) {
+function drawSelectionBox(
+  ctx: CanvasRenderingContext2D,
+  box: SelectionBox,
+  camera: Camera
+) {
   const x1 = box.start.x * camera.zoom + camera.x;
   const y1 = box.start.y * camera.zoom + camera.y;
   const x2 = box.end.x * camera.zoom + camera.x;
   const y2 = box.end.y * camera.zoom + camera.y;
 
   ctx.save();
-  ctx.fillStyle = "rgba(34, 139, 230, 0.08)";
-  ctx.strokeStyle = "#228be6";
+  ctx.fillStyle = "rgba(66, 133, 244, 0.08)";
+  ctx.strokeStyle = "#4285f4";
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
   ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
@@ -209,11 +351,10 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, box: SelectionBox, came
 function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number) {
   const gridSize = 25;
   const scaledSize = gridSize * camera.zoom;
-
   if (scaledSize < 8) return;
 
   ctx.save();
-  ctx.strokeStyle = "#e9ecef";
+  ctx.strokeStyle = "#e2e5e9";
   ctx.lineWidth = 0.5;
 
   const offsetX = camera.x % scaledSize;
@@ -225,13 +366,11 @@ function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: n
     ctx.lineTo(x, h);
     ctx.stroke();
   }
-
   for (let y = offsetY; y < h; y += scaledSize) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
     ctx.stroke();
   }
-
   ctx.restore();
 }
