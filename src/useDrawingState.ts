@@ -476,7 +476,7 @@ export function useDrawingState() {
 
   const addTextShapeAtCenter = useCallback(
     (text: string) => {
-      const pos = screenToCanvas({ x: 600, y: 400 }, camera);
+      const pos = screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, camera);
       const newShape: TextShape = {
         id: generateId(),
         type: "text",
@@ -488,6 +488,21 @@ export function useDrawingState() {
       setShapes((prev) => [...prev, newShape]);
     },
     [camera]
+  );
+
+  const addTextShapeAtPosition = useCallback(
+    (text: string, position: Point) => {
+      const newShape: TextShape = {
+        id: generateId(),
+        type: "text",
+        position,
+        text,
+        fontSize: 18,
+        color: "#000000",
+      };
+      setShapes((prev) => [...prev, newShape]);
+    },
+    []
   );
 
   // === Shelf helpers ===
@@ -565,6 +580,7 @@ export function useDrawingState() {
     alignSelected,
     addImageShape,
     addTextShapeAtCenter,
+    addTextShapeAtPosition,
     focusShape,
     moveSelectedToShelf,
   };

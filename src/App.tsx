@@ -6,7 +6,7 @@ import { ShelfPanel } from "./ShelfPanel";
 import { BookmarksPanel } from "./BookmarksPanel";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
 import { useDrawingState } from "./useDrawingState";
-import { canvasToScreen } from "./utils";
+import { canvasToScreen, screenToCanvas } from "./utils";
 
 function App() {
   const state = useDrawingState();
@@ -15,15 +15,22 @@ function App() {
   const [shelfOpen, setShelfOpen] = useState(false);
   const [shelfItems, setShelfItems] = useState<string[]>([]);
 
-  // Image cache for rendering
+  // Image cache for rendering - persists across renders via ref
+  const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
   const imageCache = useMemo(() => {
-    const cache = new Map<string, HTMLImageElement>();
+    const cache = imageCacheRef.current;
+    // Add any new image shapes
     for (const shape of state.shapes) {
       if (shape.type === "image" && !cache.has(shape.id)) {
         const img = new Image();
         img.src = shape.dataUrl;
         cache.set(shape.id, img);
       }
+    }
+    // Remove deleted shapes from cache
+    const shapeIds = new Set(state.shapes.filter(s => s.type === "image").map(s => s.id));
+    for (const id of cache.keys()) {
+      if (!shapeIds.has(id)) cache.delete(id);
     }
     return cache;
   }, [state.shapes]);
@@ -162,20 +169,26 @@ function App() {
       e.preventDefault();
       if (!e.dataTransfer) return;
 
+      // Calculate canvas-space position from drop coordinates
+      const canvasEl = document.querySelector("canvas");
+      const rect = canvasEl?.getBoundingClientRect() ?? { left: 0, top: 0 };
+      const dropScreenPt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const dropPos = screenToCanvas(dropScreenPt, state.camera);
+
       // Handle files
       const files = Array.from(e.dataTransfer.files);
       for (const file of files) {
         if (file.type.startsWith("image/")) {
           const dataUrl = await fileToDataUrl(file);
           const dims = await getImageDimensions(dataUrl);
-          state.addImageShape(dataUrl, file.name, dims.width, dims.height);
+          state.addImageShape(dataUrl, file.name, dims.width, dims.height, dropPos);
         } else if (
           file.type === "text/plain" ||
           file.name.endsWith(".txt") ||
           file.name.endsWith(".md")
         ) {
           const text = await file.text();
-          if (text.trim()) state.addTextShapeAtCenter(text);
+          if (text.trim()) state.addTextShapeAtPosition(text, dropPos);
         }
       }
 
@@ -183,7 +196,7 @@ function App() {
       if (files.length === 0) {
         const text = e.dataTransfer.getData("text/plain");
         if (text && text.trim()) {
-          state.addTextShapeAtCenter(text);
+          state.addTextShapeAtPosition(text, dropPos);
         }
       }
     };
