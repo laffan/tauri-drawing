@@ -9,6 +9,8 @@ interface ToolbarProps {
   setColor: (c: string) => void;
   strokeWidth: number;
   setStrokeWidth: (w: number) => void;
+  fontSize: number;
+  setFontSize: (s: number) => void;
   hasSelection: boolean;
   onDelete: () => void;
   onGroup: () => void;
@@ -24,6 +26,8 @@ export function Toolbar({
   setColor,
   strokeWidth,
   setStrokeWidth,
+  fontSize,
+  setFontSize,
   hasSelection,
   onDelete,
   onGroup,
@@ -35,6 +39,7 @@ export function Toolbar({
     <div style={styles.container}>
       <div style={styles.section}>
         <ToolButton label="Draw" active={tool === "draw"} onClick={() => setTool("draw")} shortcut="D" />
+        <ToolButton label="Text" active={tool === "text"} onClick={() => setTool("text")} shortcut="T" />
         <ToolButton label="Select" active={tool === "select"} onClick={() => setTool("select")} shortcut="S" />
         <ToolButton label="Erase" active={tool === "erase"} onClick={() => setTool("erase")} shortcut="E" />
       </div>
@@ -61,18 +66,35 @@ export function Toolbar({
 
       <div style={styles.divider} />
 
-      <div style={styles.section}>
-        <label style={styles.label}>Size</label>
-        <input
-          type="range"
-          min={1}
-          max={20}
-          value={strokeWidth}
-          onChange={(e) => setStrokeWidth(Number(e.target.value))}
-          style={{ width: 80 }}
-        />
-        <span style={styles.label}>{strokeWidth}px</span>
-      </div>
+      {(tool === "draw" || tool === "erase") && (
+        <div style={styles.section}>
+          <label style={styles.label}>Size</label>
+          <input
+            type="range"
+            min={1}
+            max={20}
+            value={strokeWidth}
+            onChange={(e) => setStrokeWidth(Number(e.target.value))}
+            style={{ width: 80 }}
+          />
+          <span style={styles.label}>{strokeWidth}px</span>
+        </div>
+      )}
+
+      {tool === "text" && (
+        <div style={styles.section}>
+          <label style={styles.label}>Font</label>
+          <input
+            type="range"
+            min={10}
+            max={72}
+            value={fontSize}
+            onChange={(e) => setFontSize(Number(e.target.value))}
+            style={{ width: 80 }}
+          />
+          <span style={styles.label}>{fontSize}px</span>
+        </div>
+      )}
 
       <div style={styles.divider} />
 

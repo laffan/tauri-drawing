@@ -1,8 +1,8 @@
-import type { Camera, Point } from "./types";
+import type { Bounds, Camera, Point, Shape } from "./types";
 
 let nextId = 0;
 export function generateId(): string {
-  return `stroke_${Date.now()}_${nextId++}`;
+  return `shape_${Date.now()}_${nextId++}`;
 }
 
 export function screenToCanvas(screenPoint: Point, camera: Camera): Point {
@@ -12,7 +12,21 @@ export function screenToCanvas(screenPoint: Point, camera: Camera): Point {
   };
 }
 
-export function getStrokeBounds(points: Point[]) {
+export function canvasToScreen(canvasPoint: Point, camera: Camera): Point {
+  return {
+    x: canvasPoint.x * camera.zoom + camera.x,
+    y: canvasPoint.y * camera.zoom + camera.y,
+  };
+}
+
+export function getShapeBounds(shape: Shape): Bounds {
+  if (shape.type === "draw") {
+    return getPointsBounds(shape.points);
+  }
+  return getTextBounds(shape);
+}
+
+export function getPointsBounds(points: Point[]): Bounds {
   if (points.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const p of points) {
@@ -24,11 +38,25 @@ export function getStrokeBounds(points: Point[]) {
   return { minX, minY, maxX, maxY };
 }
 
-export function pointInBounds(
-  point: Point,
-  bounds: { minX: number; minY: number; maxX: number; maxY: number },
-  padding = 8
-): boolean {
+export function getTextBounds(shape: { position: Point; text: string; fontSize: number }): Bounds {
+  const lines = shape.text.split("\n");
+  const lineHeight = shape.fontSize * 1.3;
+  const widthPerChar = shape.fontSize * 0.6;
+  const maxLineWidth = Math.max(...lines.map((l) => l.length)) * widthPerChar;
+  const height = lines.length * lineHeight;
+  return {
+    minX: shape.position.x,
+    minY: shape.position.y,
+    maxX: shape.position.x + Math.max(maxLineWidth, 20),
+    maxY: shape.position.y + Math.max(height, lineHeight),
+  };
+}
+
+export function boundsOverlap(a: Bounds, b: Bounds): boolean {
+  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+}
+
+export function pointInBounds(point: Point, bounds: Bounds, padding = 8): boolean {
   return (
     point.x >= bounds.minX - padding &&
     point.x <= bounds.maxX + padding &&
@@ -37,11 +65,11 @@ export function pointInBounds(
   );
 }
 
-export function boundsOverlap(
-  a: { minX: number; minY: number; maxX: number; maxY: number },
-  b: { minX: number; minY: number; maxX: number; maxY: number }
-): boolean {
-  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+export function hitTestShape(point: Point, shape: Shape): boolean {
+  if (shape.type === "draw") {
+    return distanceToStroke(point, shape.points) < 12;
+  }
+  return pointInBounds(point, getTextBounds(shape), 4);
 }
 
 export function distanceToStroke(point: Point, points: Point[]): number {

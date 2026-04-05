@@ -1,28 +1,81 @@
 import { useCallback, useRef, useState } from "react";
-import type { Camera, Point, SelectionBox, Stroke, Tool } from "./types";
+import type { Camera, DrawShape, Point, SelectionBox, Shape, TextShape, Tool } from "./types";
 import {
   boundsOverlap,
-  distanceToStroke,
   generateId,
-  getStrokeBounds,
+  getShapeBounds,
+  hitTestShape,
   screenToCanvas,
 } from "./utils";
 
+export interface EditingText {
+  shapeId: string | null; // null = creating new text
+  position: Point;        // canvas coordinates
+  text: string;
+  fontSize: number;
+  color: string;
+}
+
 export function useDrawingState() {
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [shapes, setShapes] = useState<Shape[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Point[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tool, setTool] = useState<Tool>("draw");
   const [color, setColor] = useState("#000000");
   const [strokeWidth, setStrokeWidth] = useState(3);
+  const [fontSize, setFontSize] = useState(20);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
+  const [editingText, setEditingText] = useState<EditingText | null>(null);
 
   const isPanning = useRef(false);
   const panStart = useRef<Point>({ x: 0, y: 0 });
   const cameraStart = useRef<Camera>({ x: 0, y: 0, zoom: 1 });
   const isDrawing = useRef(false);
   const selectStart = useRef<Point | null>(null);
+
+  const commitText = useCallback(
+    (editing: EditingText) => {
+      const trimmed = editing.text.trim();
+      if (!trimmed) return;
+
+      if (editing.shapeId) {
+        // Update existing text shape
+        setShapes((prev) =>
+          prev.map((s) =>
+            s.id === editing.shapeId && s.type === "text"
+              ? { ...s, text: trimmed }
+              : s
+          )
+        );
+      } else {
+        // Create new text shape
+        const newShape: TextShape = {
+          id: generateId(),
+          type: "text",
+          position: editing.position,
+          text: trimmed,
+          fontSize: editing.fontSize,
+          color: editing.color,
+        };
+        setShapes((prev) => [...prev, newShape]);
+      }
+    },
+    []
+  );
+
+  const startEditingExistingText = useCallback(
+    (shape: TextShape) => {
+      setEditingText({
+        shapeId: shape.id,
+        position: shape.position,
+        text: shape.text,
+        fontSize: shape.fontSize,
+        color: shape.color,
+      });
+    },
+    []
+  );
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -31,7 +84,7 @@ export function useDrawingState() {
       const screenPt: Point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       const canvasPt = screenToCanvas(screenPt, camera);
 
-      // Middle mouse or space+click => pan
+      // Middle mouse => pan
       if (e.button === 1) {
         isPanning.current = true;
         panStart.current = { x: e.clientX, y: e.clientY };
@@ -43,28 +96,46 @@ export function useDrawingState() {
       if (e.button !== 0) return;
       canvas.setPointerCapture(e.pointerId);
 
+      // If currently editing text and clicking elsewhere, commit it
+      if (editingText) {
+        commitText(editingText);
+        setEditingText(null);
+      }
+
       if (tool === "draw") {
         isDrawing.current = true;
         setCurrentStroke([canvasPt]);
+      } else if (tool === "text") {
+        // Check if clicking on an existing text shape to edit it
+        const hitShape = findShapeAtPoint(canvasPt, shapes);
+        if (hitShape && hitShape.type === "text") {
+          startEditingExistingText(hitShape);
+        } else {
+          setEditingText({
+            shapeId: null,
+            position: canvasPt,
+            text: "",
+            fontSize,
+            color,
+          });
+        }
       } else if (tool === "select") {
-        // Check if clicking on an existing stroke
-        const hitStroke = findStrokeAtPoint(canvasPt, strokes);
-        if (hitStroke) {
+        const hitShape = findShapeAtPoint(canvasPt, shapes);
+        if (hitShape) {
+          // Double-click to edit text shapes
           if (e.shiftKey) {
             setSelectedIds((prev) => {
               const next = new Set(prev);
-              // If stroke is in a group, toggle whole group
-              const ids = getGroupIds(hitStroke, strokes);
+              const ids = getGroupIds(hitShape, shapes);
               const allSelected = ids.every((id) => next.has(id));
               ids.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
               return next;
             });
           } else {
-            const ids = getGroupIds(hitStroke, strokes);
+            const ids = getGroupIds(hitShape, shapes);
             setSelectedIds(new Set(ids));
           }
         } else {
-          // Start selection rectangle
           if (!e.shiftKey) setSelectedIds(new Set());
           selectStart.current = canvasPt;
           setSelectionBox({ start: canvasPt, end: canvasPt });
@@ -74,7 +145,21 @@ export function useDrawingState() {
         eraseAtPoint(canvasPt);
       }
     },
-    [camera, tool, strokes]
+    [camera, tool, shapes, editingText, commitText, startEditingExistingText, fontSize, color]
+  );
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (tool !== "select") return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const screenPt: Point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const canvasPt = screenToCanvas(screenPt, camera);
+      const hitShape = findShapeAtPoint(canvasPt, shapes);
+      if (hitShape && hitShape.type === "text") {
+        startEditingExistingText(hitShape);
+      }
+    },
+    [tool, camera, shapes, startEditingExistingText]
   );
 
   const handlePointerMove = useCallback(
@@ -114,19 +199,19 @@ export function useDrawingState() {
       }
 
       if (tool === "draw" && isDrawing.current && currentStroke) {
-        const newStroke: Stroke = {
+        const newShape: DrawShape = {
           id: generateId(),
+          type: "draw",
           points: currentStroke,
           color,
           width: strokeWidth,
         };
-        setStrokes((prev) => [...prev, newStroke]);
+        setShapes((prev) => [...prev, newShape]);
         setCurrentStroke(null);
       } else if (tool === "select" && selectionBox) {
-        // Select strokes within the box
         const box = normalizeBox(selectionBox);
-        const hits = strokes.filter((s) => {
-          const bounds = getStrokeBounds(s.points);
+        const hits = shapes.filter((s) => {
+          const bounds = getShapeBounds(s);
           return boundsOverlap(bounds, box);
         });
         if (e.shiftKey) {
@@ -144,7 +229,7 @@ export function useDrawingState() {
 
       isDrawing.current = false;
     },
-    [tool, currentStroke, color, strokeWidth, selectionBox, strokes]
+    [tool, currentStroke, color, strokeWidth, selectionBox, shapes]
   );
 
   const handleWheel = useCallback(
@@ -154,7 +239,6 @@ export function useDrawingState() {
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      // Pinch zoom or ctrl+scroll
       const zoomFactor = e.ctrlKey ? 0.01 : 0.001;
       const delta = -e.deltaY * zoomFactor;
       const newZoom = Math.min(5, Math.max(0.1, camera.zoom * (1 + delta)));
@@ -169,28 +253,25 @@ export function useDrawingState() {
     [camera]
   );
 
-  const eraseAtPoint = useCallback(
-    (pt: Point) => {
-      setStrokes((prev) => prev.filter((s) => distanceToStroke(pt, s.points) > 12));
-    },
-    []
-  );
+  const eraseAtPoint = useCallback((pt: Point) => {
+    setShapes((prev) => prev.filter((s) => !hitTestShape(pt, s)));
+  }, []);
 
   const deleteSelected = useCallback(() => {
-    setStrokes((prev) => prev.filter((s) => !selectedIds.has(s.id)));
+    setShapes((prev) => prev.filter((s) => !selectedIds.has(s.id)));
     setSelectedIds(new Set());
   }, [selectedIds]);
 
   const groupSelected = useCallback(() => {
     if (selectedIds.size < 2) return;
     const groupId = generateId();
-    setStrokes((prev) =>
+    setShapes((prev) =>
       prev.map((s) => (selectedIds.has(s.id) ? { ...s, groupId } : s))
     );
   }, [selectedIds]);
 
   const ungroupSelected = useCallback(() => {
-    setStrokes((prev) =>
+    setShapes((prev) =>
       prev.map((s) =>
         selectedIds.has(s.id) ? { ...s, groupId: undefined } : s
       )
@@ -199,7 +280,7 @@ export function useDrawingState() {
 
   const changeSelectedColor = useCallback(
     (newColor: string) => {
-      setStrokes((prev) =>
+      setShapes((prev) =>
         prev.map((s) => (selectedIds.has(s.id) ? { ...s, color: newColor } : s))
       );
     },
@@ -207,7 +288,7 @@ export function useDrawingState() {
   );
 
   return {
-    strokes,
+    shapes,
     currentStroke,
     selectedIds,
     tool,
@@ -216,12 +297,18 @@ export function useDrawingState() {
     setColor,
     strokeWidth,
     setStrokeWidth,
+    fontSize,
+    setFontSize,
     camera,
     setCamera,
     selectionBox,
+    editingText,
+    setEditingText,
+    commitText,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    handleDoubleClick,
     handleWheel,
     deleteSelected,
     groupSelected,
@@ -230,19 +317,18 @@ export function useDrawingState() {
   };
 }
 
-function findStrokeAtPoint(pt: Point, strokes: Stroke[]): Stroke | null {
-  // Search in reverse so topmost strokes are found first
-  for (let i = strokes.length - 1; i >= 0; i--) {
-    if (distanceToStroke(pt, strokes[i].points) < 12) {
-      return strokes[i];
+function findShapeAtPoint(pt: Point, shapes: Shape[]): Shape | null {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    if (hitTestShape(pt, shapes[i])) {
+      return shapes[i];
     }
   }
   return null;
 }
 
-function getGroupIds(stroke: Stroke, strokes: Stroke[]): string[] {
-  if (!stroke.groupId) return [stroke.id];
-  return strokes.filter((s) => s.groupId === stroke.groupId).map((s) => s.id);
+function getGroupIds(shape: Shape, shapes: Shape[]): string[] {
+  if (!shape.groupId) return [shape.id];
+  return shapes.filter((s) => s.groupId === shape.groupId).map((s) => s.id);
 }
 
 function normalizeBox(box: SelectionBox) {
