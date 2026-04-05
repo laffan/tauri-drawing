@@ -48,7 +48,8 @@ export interface TextShape extends ShapeBase {
   position: Point;
   text: string;
   fontSize: number;
-  backgroundColor?: string; // color key for background rect
+  width?: number; // constraint width for wrapping; undefined = auto-size
+  backgroundColor?: string;
 }
 
 export interface ImageShape extends ShapeBase {

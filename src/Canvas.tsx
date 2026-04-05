@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
 import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
-import { getShapeBounds } from "./utils";
+import { getShapeBounds, wrapText } from "./utils";
 
 interface CanvasProps {
   shapes: Shape[];
@@ -249,8 +249,14 @@ function drawStroke(
 }
 
 function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
-  const lines = shape.text.split("\n");
   const lineHeight = shape.fontSize * LINE_HEIGHT_RATIO;
+  const charWidth = shape.fontSize * 0.6;
+
+  // Get display lines (wrapped if width constraint set)
+  const lines =
+    shape.width && shape.width > 0
+      ? wrapText(shape.text, shape.width, charWidth)
+      : shape.text.split("\n");
 
   // Draw background if set
   if (shape.backgroundColor) {

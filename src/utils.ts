@@ -27,7 +27,7 @@ export function getShapeBounds(shape: Shape): Bounds {
     case "draw":
       return getPointsBounds(shape.points);
     case "text":
-      return getTextBounds(shape.position, shape.text, shape.fontSize);
+      return getTextBounds(shape.position, shape.text, shape.fontSize, shape.width);
     case "image":
       return {
         minX: shape.position.x,
@@ -63,12 +63,27 @@ export function getPointsBounds(points: Point[]): Bounds {
 export function getTextBounds(
   position: Point,
   text: string,
-  fontSize: number
+  fontSize: number,
+  constraintWidth?: number,
 ): Bounds {
-  const lines = text.split("\n");
   const lineHeight = fontSize * LINE_HEIGHT_RATIO;
-  const widthPerChar = fontSize * 0.6;
-  const maxLineWidth = Math.max(...lines.map((l) => l.length)) * widthPerChar;
+  const charWidth = fontSize * 0.6;
+
+  if (constraintWidth && constraintWidth > 0) {
+    // Wrap text to constraint width and measure
+    const wrapped = wrapText(text, constraintWidth, charWidth);
+    const height = wrapped.length * lineHeight;
+    return {
+      minX: position.x,
+      minY: position.y,
+      maxX: position.x + constraintWidth,
+      maxY: position.y + Math.max(height, lineHeight),
+    };
+  }
+
+  // Auto-size: measure natural width
+  const lines = text.split("\n");
+  const maxLineWidth = Math.max(...lines.map((l) => l.length)) * charWidth;
   const height = lines.length * lineHeight;
   return {
     minX: position.x,
@@ -76,6 +91,33 @@ export function getTextBounds(
     maxX: position.x + Math.max(maxLineWidth, 20),
     maxY: position.y + Math.max(height, lineHeight),
   };
+}
+
+/** Word-wrap text to fit within a pixel width (approximate, character-based) */
+export function wrapText(text: string, maxWidth: number, charWidth: number): string[] {
+  const maxChars = Math.max(1, Math.floor(maxWidth / charWidth));
+  const result: string[] = [];
+
+  for (const paragraph of text.split("\n")) {
+    if (paragraph.length === 0) {
+      result.push("");
+      continue;
+    }
+    const words = paragraph.split(" ");
+    let line = "";
+    for (const word of words) {
+      const test = line ? line + " " + word : word;
+      if (test.length > maxChars && line.length > 0) {
+        result.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) result.push(line);
+  }
+
+  return result.length > 0 ? result : [""];
 }
 
 export function boundsOverlap(a: Bounds, b: Bounds): boolean {

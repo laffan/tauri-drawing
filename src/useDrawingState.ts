@@ -68,8 +68,8 @@ export function useDrawingState() {
   const isResizing = useRef(false);
   const resizeHandle = useRef<ResizeHandle | null>(null);
   const resizeStart = useRef<Point>({ x: 0, y: 0 });
+  const resizeOrigShape = useRef<Shape | null>(null);
   const resizeOrigBounds = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null);
-  const resizeShapeId = useRef<string | null>(null);
 
   // === Text commit ===
   const commitText = useCallback((editing: EditingText) => {
@@ -203,10 +203,10 @@ export function useDrawingState() {
         if (handleHit) {
           isResizing.current = true;
           resizeHandle.current = handleHit.handle;
-          resizeShapeId.current = handleHit.shapeId;
           resizeStart.current = canvasPt;
           const shape = shapes.find((s) => s.id === handleHit.shapeId);
           if (shape) {
+            resizeOrigShape.current = structuredClone(shape);
             const b = getShapeBounds(shape);
             resizeOrigBounds.current = { ...b };
           }
@@ -303,16 +303,17 @@ export function useDrawingState() {
       }
 
       // Resizing
-      if (isResizing.current && resizeShapeId.current && resizeOrigBounds.current) {
+      if (isResizing.current && resizeOrigShape.current && resizeOrigBounds.current) {
         const dx = canvasPt.x - resizeStart.current.x;
         const dy = canvasPt.y - resizeStart.current.y;
         const handle = resizeHandle.current!;
         const orig = resizeOrigBounds.current;
+        const origShape = resizeOrigShape.current;
 
         setShapes((prev) =>
           prev.map((s) => {
-            if (s.id !== resizeShapeId.current) return s;
-            return applyResize(s, handle, orig, dx, dy);
+            if (s.id !== origShape.id) return s;
+            return applyResize(origShape, handle, orig, dx, dy);
           })
         );
         return;
@@ -346,7 +347,7 @@ export function useDrawingState() {
       if (isResizing.current) {
         isResizing.current = false;
         resizeHandle.current = null;
-        resizeShapeId.current = null;
+        resizeOrigShape.current = null;
         resizeOrigBounds.current = null;
         return;
       }
@@ -700,44 +701,46 @@ function moveShape(shape: Shape, dx: number, dy: number): Shape {
   }
 }
 
-/** Apply a resize delta from a handle drag to a shape */
+/**
+ * Apply a resize delta from a handle drag.
+ * `origShape` is the shape as it was at the start of the drag (pristine).
+ * `orig` is the bounds of origShape.
+ * dx/dy are the total delta from the resize start point.
+ */
 function applyResize(
-  shape: Shape,
+  origShape: Shape,
   handle: ResizeHandle,
   orig: { minX: number; minY: number; maxX: number; maxY: number },
   dx: number,
   dy: number,
 ): Shape {
-  // Compute new bounds based on handle
-  let { minX, minY, maxX, maxY } = orig;
+  // Compute new bounds based on which handle is being dragged
+  let minX = orig.minX, minY = orig.minY, maxX = orig.maxX, maxY = orig.maxY;
   if (handle.includes("w")) minX += dx;
   if (handle.includes("e")) maxX += dx;
   if (handle.includes("n")) minY += dy;
   if (handle.includes("s")) maxY += dy;
 
   // Enforce minimum size
-  const minW = 20, minH = 20;
-  if (maxX - minX < minW) { if (handle.includes("w")) minX = maxX - minW; else maxX = minX + minW; }
-  if (maxY - minY < minH) { if (handle.includes("n")) minY = maxY - minH; else maxY = minY + minH; }
+  const MIN = 30;
+  if (maxX - minX < MIN) { if (handle.includes("w")) minX = maxX - MIN; else maxX = minX + MIN; }
+  if (maxY - minY < MIN) { if (handle.includes("n")) minY = maxY - MIN; else maxY = minY + MIN; }
 
   const newW = maxX - minX;
   const newH = maxY - minY;
 
-  switch (shape.type) {
+  switch (origShape.type) {
     case "text": {
-      // Scale font size proportionally to height change
-      const origH = orig.maxY - orig.minY;
-      const scale = origH > 0 ? newH / origH : 1;
-      const newFontSize = Math.max(8, Math.min(200, shape.fontSize * scale));
-      return { ...shape, position: { x: minX, y: minY }, fontSize: newFontSize };
+      // Text resize changes the width constraint (for wrapping).
+      // Font size stays the same — the text reflows to the new width.
+      return { ...origShape, position: { x: minX, y: minY }, width: Math.max(MIN, newW) };
     }
     case "image":
-      return { ...shape, position: { x: minX, y: minY }, width: newW, height: newH };
+      return { ...origShape, position: { x: minX, y: minY }, width: newW, height: newH };
     case "drag-area":
-      return { ...shape, position: { x: minX, y: minY }, width: newW, height: newH };
+      return { ...origShape, position: { x: minX, y: minY }, width: newW, height: newH };
     case "draw":
-      // Scale all points to fit new bounds
-      return scaleDrawShape(shape, orig, { minX, minY, maxX, maxY });
+      return scaleDrawShape(origShape, orig, { minX, minY, maxX, maxY });
   }
 }
 
