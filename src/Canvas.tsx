@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
 import type { Camera, Point, SelectionBox, Shape, TextShape } from "./types";
 import { getShapeBounds } from "./utils";
 
@@ -158,10 +159,10 @@ function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color: strin
 
 function drawText(ctx: CanvasRenderingContext2D, shape: TextShape) {
   const lines = shape.text.split("\n");
-  const lineHeight = shape.fontSize * 1.3;
+  const lineHeight = shape.fontSize * LINE_HEIGHT_RATIO;
 
   ctx.save();
-  ctx.font = `${shape.fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  ctx.font = `${shape.fontSize}px ${FONT_FAMILY}`;
   ctx.fillStyle = shape.color;
   ctx.textBaseline = "top";
 

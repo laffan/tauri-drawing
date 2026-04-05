@@ -1,5 +1,8 @@
 export type Tool = "draw" | "select" | "erase" | "text";
 
+export const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+export const LINE_HEIGHT_RATIO = 1.3;
+
 export interface Point {
   x: number;
   y: number;

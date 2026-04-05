@@ -1,24 +1,41 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Canvas } from "./Canvas";
 import { Toolbar } from "./Toolbar";
+import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
 import { useDrawingState } from "./useDrawingState";
 import { canvasToScreen } from "./utils";
 
 function App() {
   const state = useDrawingState();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
 
-  // Focus textarea when editing starts
+  // Focus textarea when editing starts, place cursor at end
   useEffect(() => {
     if (state.editingText && textareaRef.current) {
-      textareaRef.current.focus();
+      const ta = textareaRef.current;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
     }
-  }, [state.editingText]);
+  }, [state.editingText !== null]);
+
+  // Auto-resize textarea to match content using the hidden measure div
+  useEffect(() => {
+    if (!state.editingText || !textareaRef.current || !measureRef.current) return;
+    const measure = measureRef.current;
+    // Use content + a trailing character so empty lines still have height
+    measure.textContent = state.editingText.text || "\u00A0";
+    // Sync trailing newline: add a zero-width space so the div expands
+    if (state.editingText.text.endsWith("\n")) {
+      measure.textContent += "\u00A0";
+    }
+    textareaRef.current.style.width = measure.scrollWidth + 2 + "px";
+    textareaRef.current.style.height = measure.scrollHeight + "px";
+  }, [state.editingText?.text, state.editingText?.fontSize, state.camera.zoom]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept when editing text
       if (state.editingText) {
         if (e.key === "Escape") {
           state.commitText(state.editingText);
@@ -82,32 +99,23 @@ function App() {
     erase: "pointer",
   };
 
-  // Compute textarea screen position
-  let textOverlayStyle: React.CSSProperties | null = null;
+  // Shared font styles that match canvas drawText exactly
+  const scaledFontSize = state.editingText
+    ? state.editingText.fontSize * state.camera.zoom
+    : 0;
+  const scaledLineHeight = scaledFontSize * LINE_HEIGHT_RATIO;
+
+  const fontStyles: React.CSSProperties = {
+    fontFamily: FONT_FAMILY,
+    fontSize: scaledFontSize,
+    lineHeight: `${scaledLineHeight}px`,
+    whiteSpace: "pre",
+    wordBreak: "keep-all",
+  };
+
+  let screenPos = { x: 0, y: 0 };
   if (state.editingText) {
-    const screenPos = canvasToScreen(state.editingText.position, state.camera);
-    textOverlayStyle = {
-      position: "absolute",
-      left: screenPos.x,
-      top: screenPos.y + 48, // offset for toolbar height
-      fontSize: state.editingText.fontSize * state.camera.zoom,
-      lineHeight: `${state.editingText.fontSize * 1.3 * state.camera.zoom}px`,
-      color: state.editingText.color,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      background: "transparent",
-      border: "2px solid #228be6",
-      borderRadius: 2,
-      outline: "none",
-      padding: "2px 4px",
-      margin: 0,
-      resize: "none" as const,
-      overflow: "hidden",
-      minWidth: 40,
-      minHeight: state.editingText.fontSize * 1.3 * state.camera.zoom + 8,
-      zIndex: 200,
-      whiteSpace: "pre",
-      boxSizing: "border-box" as const,
-    };
+    screenPos = canvasToScreen(state.editingText.position, state.camera);
   }
 
   return (
@@ -144,17 +152,51 @@ function App() {
         onWheel={state.handleWheel}
         toolCursor={cursorMap[state.tool]}
       />
-      {state.editingText && textOverlayStyle && (
-        <textarea
-          ref={textareaRef}
-          value={state.editingText.text}
-          onChange={handleTextChange}
-          onBlur={handleTextBlur}
-          style={textOverlayStyle}
-          rows={Math.max(1, state.editingText.text.split("\n").length)}
-          cols={Math.max(4, Math.max(...state.editingText.text.split("\n").map((l) => l.length)) + 2)}
-          placeholder="Type here..."
-        />
+      {state.editingText && (
+        <>
+          {/* Hidden div that mirrors textarea content for measuring true size */}
+          <div
+            ref={measureRef}
+            aria-hidden
+            style={{
+              ...fontStyles,
+              position: "absolute",
+              visibility: "hidden",
+              height: "auto",
+              width: "auto",
+              padding: 0,
+              border: "none",
+              pointerEvents: "none",
+            }}
+          />
+          {/* Invisible textarea that sits exactly where canvas text renders */}
+          <textarea
+            ref={textareaRef}
+            className="inline-text-editor"
+            value={state.editingText.text}
+            onChange={handleTextChange}
+            onBlur={handleTextBlur}
+            style={{
+              ...fontStyles,
+              position: "absolute",
+              left: screenPos.x,
+              top: screenPos.y + 48,
+              color: state.editingText.color,
+              caretColor: state.editingText.color,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              padding: 0,
+              margin: 0,
+              resize: "none",
+              overflow: "hidden",
+              minWidth: 1,
+              minHeight: scaledLineHeight,
+              zIndex: 200,
+              boxSizing: "content-box",
+            }}
+          />
+        </>
       )}
       <div style={styles.statusBar}>
         <span>Zoom: {Math.round(state.camera.zoom * 100)}%</span>

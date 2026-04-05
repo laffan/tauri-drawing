@@ -1,3 +1,4 @@
+import { LINE_HEIGHT_RATIO } from "./types";
 import type { Bounds, Camera, Point, Shape } from "./types";
 
 let nextId = 0;
@@ -40,7 +41,7 @@ export function getPointsBounds(points: Point[]): Bounds {
 
 export function getTextBounds(shape: { position: Point; text: string; fontSize: number }): Bounds {
   const lines = shape.text.split("\n");
-  const lineHeight = shape.fontSize * 1.3;
+  const lineHeight = shape.fontSize * LINE_HEIGHT_RATIO;
   const widthPerChar = shape.fontSize * 0.6;
   const maxLineWidth = Math.max(...lines.map((l) => l.length)) * widthPerChar;
   const height = lines.length * lineHeight;
