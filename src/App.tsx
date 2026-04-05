@@ -120,7 +120,7 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [state]);
 
-  // Paste handler
+  // Paste handler — supports iOS, macOS, and standard clipboard APIs
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
       if (
@@ -134,7 +134,7 @@ function App() {
       const clipboardData = e.clipboardData;
       if (!clipboardData) return;
 
-      // Handle images
+      // Handle images first (check items for binary image data)
       const items = Array.from(clipboardData.items);
       for (const item of items) {
         if (item.type.startsWith("image/")) {
@@ -148,22 +148,24 @@ function App() {
         }
       }
 
-      // Handle text
-      if (clipboardData.types.includes("text/plain")) {
-        const text = clipboardData.getData("text/plain");
-        if (text.trim()) {
-          state.addTextShapeAtCenter(text);
-        }
+      // Handle text — try multiple clipboard type strings for cross-platform
+      const text = extractTextFromDataTransfer(clipboardData);
+      if (text && text.trim()) {
+        state.addTextShapeAtCenter(text);
       }
     };
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
   }, [state]);
 
-  // Drop handler
+  // Drop handler — supports iOS, macOS text drag, file drops, and browser drags
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
+      // Signal to the browser that we accept drops
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+      }
     };
     const handleDrop = async (e: DragEvent) => {
       e.preventDefault();
@@ -172,40 +174,47 @@ function App() {
       // Calculate canvas-space position from drop coordinates
       const canvasEl = document.querySelector("canvas");
       const rect = canvasEl?.getBoundingClientRect() ?? { left: 0, top: 0 };
-      const dropScreenPt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const dropScreenPt = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
       const dropPos = screenToCanvas(dropScreenPt, state.camera);
 
-      // Handle files
+      // Handle file drops (images, text files)
       const files = Array.from(e.dataTransfer.files);
+      let handledFile = false;
       for (const file of files) {
         if (file.type.startsWith("image/")) {
           const dataUrl = await fileToDataUrl(file);
           const dims = await getImageDimensions(dataUrl);
-          state.addImageShape(dataUrl, file.name, dims.width, dims.height, dropPos);
-        } else if (
-          file.type === "text/plain" ||
-          file.name.endsWith(".txt") ||
-          file.name.endsWith(".md")
-        ) {
+          state.addImageShape(
+            dataUrl,
+            file.name,
+            dims.width,
+            dims.height,
+            dropPos
+          );
+          handledFile = true;
+        } else if (isTextFile(file)) {
           const text = await file.text();
           if (text.trim()) state.addTextShapeAtPosition(text, dropPos);
+          handledFile = true;
         }
       }
+      if (handledFile) return;
 
-      // Handle dragged text
-      if (files.length === 0) {
-        const text = e.dataTransfer.getData("text/plain");
-        if (text && text.trim()) {
-          state.addTextShapeAtPosition(text, dropPos);
-        }
+      // Handle dragged text content (no files) — cross-platform extraction
+      const text = await extractDroppedText(e.dataTransfer);
+      if (text && text.trim()) {
+        state.addTextShapeAtPosition(text, dropPos);
       }
     };
 
-    document.addEventListener("dragover", handleDragOver);
-    document.addEventListener("drop", handleDrop);
+    document.addEventListener("dragover", handleDragOver, true);
+    document.addEventListener("drop", handleDrop, true);
     return () => {
-      document.removeEventListener("dragover", handleDragOver);
-      document.removeEventListener("drop", handleDrop);
+      document.removeEventListener("dragover", handleDragOver, true);
+      document.removeEventListener("drop", handleDrop, true);
     };
   }, [state]);
 
@@ -435,6 +444,120 @@ function getImageDimensions(
     img.onerror = () => reject(new Error("Failed to load image"));
     img.src = dataUrl;
   });
+}
+
+// === Cross-platform text extraction ===
+// iOS and macOS use different clipboard/drag type strings than standard browsers.
+// This mirrors the approach from ratchet-canvas's external-content.js.
+
+/** Known text MIME / pasteboard types across platforms */
+const TEXT_DATA_TYPES = [
+  "text/plain",
+  "text",
+  "Text",
+  "text/plain;charset=utf-8",
+  "text/plain;charset=utf8",
+  // Apple / iOS pasteboard types
+  "public.utf8-plain-text",
+  "public.utf16-plain-text",
+  "public.text",
+  "com.apple.traditional-mac-plain-text",
+  "NSStringPboardType",
+  // Mozilla
+  "text/x-moz-text-internal",
+  // Rich content we'll convert to plain text
+  "text/html",
+  "public.html",
+  // URL lists (macOS Safari drags)
+  "text/uri-list",
+];
+
+/**
+ * Synchronous text extraction from a DataTransfer (works for paste events
+ * where getData is available synchronously).
+ */
+function extractTextFromDataTransfer(dt: DataTransfer): string {
+  for (const type of TEXT_DATA_TYPES) {
+    try {
+      const value = dt.getData(type);
+      if (value && value.trim()) {
+        return normalizeTextContent(value, type);
+      }
+    } catch {
+      // Some types throw on access in certain browsers — skip
+    }
+  }
+  return "";
+}
+
+/**
+ * Async text extraction from a DataTransfer (for drop events where we may
+ * need to use DataTransferItem.getAsString).
+ */
+async function extractDroppedText(dt: DataTransfer): Promise<string> {
+  // First try synchronous getData across all known types
+  const sync = extractTextFromDataTransfer(dt);
+  if (sync) return sync;
+
+  // Fallback: iterate DataTransferItems (iOS sometimes only exposes these)
+  if (dt.items && dt.items.length > 0) {
+    for (const item of Array.from(dt.items)) {
+      if (item.kind === "string") {
+        const value = await new Promise<string>((resolve) => {
+          try {
+            item.getAsString((text) => resolve(text || ""));
+          } catch {
+            resolve("");
+          }
+        });
+        if (value && value.trim()) {
+          return normalizeTextContent(value, item.type);
+        }
+      }
+    }
+  }
+
+  // Last resort: try all types present on the DataTransfer
+  const allTypes = dt.types ? Array.from(dt.types) : [];
+  for (const type of allTypes) {
+    try {
+      const value = dt.getData(type);
+      if (value && value.trim()) {
+        return normalizeTextContent(value, type);
+      }
+    } catch {
+      // skip
+    }
+  }
+
+  return "";
+}
+
+/** Convert HTML content to plain text, pass through everything else */
+function normalizeTextContent(value: string, type: string): string {
+  const lower = (type || "").toLowerCase();
+  if (lower.includes("html")) {
+    try {
+      const div = document.createElement("div");
+      div.innerHTML = value;
+      return div.textContent || div.innerText || "";
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+/** Check if a file is a text file we should read as text */
+function isTextFile(file: File): boolean {
+  if (file.type === "text/plain") return true;
+  const name = (file.name || "").toLowerCase();
+  return (
+    name.endsWith(".txt") ||
+    name.endsWith(".md") ||
+    name.endsWith(".markdown") ||
+    name.endsWith(".text")
+  );
 }
 
 export default App;
