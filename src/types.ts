@@ -35,6 +35,7 @@ interface ShapeBase {
   id: string;
   color: string;
   parentId?: string; // id of drag-area parent, if any
+  groupId?: string;  // shared id for logically grouped shapes
 }
 
 export interface DrawShape extends ShapeBase {

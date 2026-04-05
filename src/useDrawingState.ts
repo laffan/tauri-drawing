@@ -63,6 +63,7 @@ export function useDrawingState() {
   // Drag state
   const isDragging = useRef(false);
   const dragStart = useRef<Point>({ x: 0, y: 0 });
+  const didDuplicate = useRef(false); // true if this drag is an alt-duplicate
 
   // Resize state
   const isResizing = useRef(false);
@@ -215,23 +216,65 @@ export function useDrawingState() {
 
         const hitShape = findShapeAtPoint(canvasPt, shapes);
         if (hitShape) {
+          // Group-aware selection: clicking one member selects the whole group
+          const groupMembers = hitShape.groupId
+            ? shapes.filter((s) => s.groupId === hitShape.groupId).map((s) => s.id)
+            : [hitShape.id];
+
           if (e.shiftKey) {
             setSelectedIds((prev) => {
               const next = new Set(prev);
-              if (next.has(hitShape.id)) {
-                next.delete(hitShape.id);
-              } else {
-                next.add(hitShape.id);
-              }
+              const allSelected = groupMembers.every((id) => next.has(id));
+              groupMembers.forEach((id) =>
+                allSelected ? next.delete(id) : next.add(id)
+              );
               return next;
             });
           } else {
             if (!selectedIds.has(hitShape.id)) {
-              setSelectedIds(new Set([hitShape.id]));
+              setSelectedIds(new Set(groupMembers));
             }
             // Start dragging
             isDragging.current = true;
+            didDuplicate.current = false;
             dragStart.current = canvasPt;
+
+            // Alt/Option+click: duplicate selected shapes before dragging
+            if (e.altKey) {
+              const currentSelected = selectedIds.has(hitShape.id)
+                ? selectedIds
+                : new Set(groupMembers);
+              const idMap = new Map<string, string>();
+              const clones: Shape[] = [];
+
+              for (const s of shapes) {
+                if (!currentSelected.has(s.id)) continue;
+                const newId = generateId();
+                idMap.set(s.id, newId);
+                clones.push({ ...structuredClone(s), id: newId });
+              }
+              // Update groupIds in clones so they form a new group
+              for (const clone of clones) {
+                if (clone.groupId && idMap.has(clone.groupId)) {
+                  // groupId doesn't map to a shape id, but if multiple clones
+                  // share the same groupId, give them a new shared one
+                }
+              }
+              // Remap groupIds: all clones that had the same groupId get a new shared one
+              const groupIdMap = new Map<string, string>();
+              for (const clone of clones) {
+                if (clone.groupId) {
+                  if (!groupIdMap.has(clone.groupId)) {
+                    groupIdMap.set(clone.groupId, generateId());
+                  }
+                  clone.groupId = groupIdMap.get(clone.groupId);
+                }
+              }
+
+              setShapes((prev) => [...prev, ...clones]);
+              setSelectedIds(new Set(clones.map((c) => c.id)));
+              didDuplicate.current = true;
+            }
           }
         } else {
           if (!e.shiftKey) setSelectedIds(new Set());
@@ -498,6 +541,22 @@ export function useDrawingState() {
     [selectedIds]
   );
 
+  const groupSelected = useCallback(() => {
+    if (selectedIds.size < 2) return;
+    const gid = generateId();
+    setShapes((prev) =>
+      prev.map((s) => (selectedIds.has(s.id) ? { ...s, groupId: gid } : s))
+    );
+  }, [selectedIds]);
+
+  const ungroupSelected = useCallback(() => {
+    setShapes((prev) =>
+      prev.map((s) =>
+        selectedIds.has(s.id) ? { ...s, groupId: undefined } : s
+      )
+    );
+  }, [selectedIds]);
+
   const alignSelected = useCallback(
     (direction: "left" | "center" | "right" | "top" | "middle" | "bottom") => {
       setShapes((prev) => {
@@ -656,6 +715,8 @@ export function useDrawingState() {
     handleDoubleClick,
     handleWheel,
     deleteSelected,
+    groupSelected,
+    ungroupSelected,
     changeSelectedColor,
     changeSelectedBackground,
     alignSelected,

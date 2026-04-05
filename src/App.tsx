@@ -123,6 +123,17 @@ function App() {
         case "Backspace":
           state.deleteSelected();
           break;
+        case "g":
+        case "G":
+          if (e.metaKey || e.ctrlKey) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              state.ungroupSelected();
+            } else {
+              state.groupSelected();
+            }
+          }
+          break;
       }
     };
     window.addEventListener("keydown", handleKeyDown);
