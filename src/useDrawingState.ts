@@ -19,6 +19,7 @@ import {
   generateId,
   getShapeBounds,
   hitTestShape,
+  pointInBounds,
   screenToCanvas,
 } from "./utils";
 
@@ -335,12 +336,25 @@ export function useDrawingState() {
         const dy = canvasPt.y - dragStart.current.y;
         if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
           dragStart.current = canvasPt;
-          setShapes((prev) =>
-            prev.map((s) => {
-              if (!selectedIds.has(s.id)) return s;
-              return moveShape(s, dx, dy);
-            })
-          );
+          setShapes((prev) => {
+            // Collect IDs of selected drag areas so we can also move their children
+            const selectedDragAreaIds = new Set<string>();
+            for (const s of prev) {
+              if (selectedIds.has(s.id) && s.type === "drag-area") {
+                selectedDragAreaIds.add(s.id);
+              }
+            }
+
+            return prev.map((s) => {
+              // Move selected shapes
+              if (selectedIds.has(s.id)) return moveShape(s, dx, dy);
+              // Move children of selected drag areas (even if not directly selected)
+              if (s.parentId && selectedDragAreaIds.has(s.parentId)) {
+                return moveShape(s, dx, dy);
+              }
+              return s;
+            });
+          });
         }
         return;
       }
@@ -384,6 +398,35 @@ export function useDrawingState() {
 
       if (isDragging.current) {
         isDragging.current = false;
+        // Re-evaluate drag area containment for all dragged non-drag-area shapes
+        setShapes((prev) => {
+          const dragAreas = prev.filter((s) => s.type === "drag-area");
+          return prev.map((s) => {
+            if (!selectedIds.has(s.id)) return s;
+            if (s.type === "drag-area") return s; // drag areas don't get parented
+
+            // Find which drag area (if any) this shape's center is inside
+            const bounds = getShapeBounds(s);
+            const cx = (bounds.minX + bounds.maxX) / 2;
+            const cy = (bounds.minY + bounds.maxY) / 2;
+            const center: Point = { x: cx, y: cy };
+
+            let newParent: string | undefined;
+            for (const da of dragAreas) {
+              if (selectedIds.has(da.id)) continue; // skip drag areas we're also dragging
+              const daBounds = getShapeBounds(da);
+              if (pointInBounds(center, daBounds, 0)) {
+                newParent = da.id;
+                break;
+              }
+            }
+
+            if (newParent !== s.parentId) {
+              return { ...s, parentId: newParent };
+            }
+            return s;
+          });
+        });
         return;
       }
 
