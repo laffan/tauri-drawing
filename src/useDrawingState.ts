@@ -112,7 +112,16 @@ export function useDrawingState() {
       }
 
       if (e.button !== 0) return;
-      canvas.setPointerCapture(e.pointerId);
+
+      // Don't capture pointer when we're about to create a text editor —
+      // pointer capture steals focus from the textarea that appears
+      const willEditText =
+        tool === "text" ||
+        brainstormMode ||
+        (tool === "select" && false); // double-click handled separately
+      if (!willEditText) {
+        canvas.setPointerCapture(e.pointerId);
+      }
 
       // Commit any editing text first
       if (editingText) {

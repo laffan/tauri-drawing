@@ -14,6 +14,8 @@ function App() {
   const measureRef = useRef<HTMLDivElement>(null);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [shelfItems, setShelfItems] = useState<string[]>([]);
+  const editingTextRef = useRef(state.editingText);
+  editingTextRef.current = state.editingText;
 
   // Image cache for rendering - persists across renders via ref
   const imageCacheRef = useRef(new Map<string, HTMLImageElement>());
@@ -35,12 +37,19 @@ function App() {
     return cache;
   }, [state.shapes]);
 
-  // Focus textarea when editing starts
+  // Focus textarea when editing starts — delay to let React render it first
   useEffect(() => {
-    if (state.editingText && textareaRef.current) {
-      const ta = textareaRef.current;
-      ta.focus();
-      ta.setSelectionRange(ta.value.length, ta.value.length);
+    if (state.editingText) {
+      const timer = setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(
+            textareaRef.current.value.length,
+            textareaRef.current.value.length
+          );
+        }
+      }, 20);
+      return () => clearTimeout(timer);
     }
   }, [state.editingText !== null]);
 
@@ -227,10 +236,16 @@ function App() {
   );
 
   const handleTextBlur = useCallback(() => {
-    if (!state.editingText) return;
-    state.commitText(state.editingText);
-    state.setEditingText(null);
-  }, [state]);
+    // Small delay to avoid race with the pointerDown that creates the editing state.
+    // Without this, the textarea can blur immediately on creation.
+    // Read from ref to get the latest value inside the timeout.
+    setTimeout(() => {
+      const current = editingTextRef.current;
+      if (!current) return;
+      state.commitText(current);
+      state.setEditingText(null);
+    }, 150);
+  }, [state.commitText, state.setEditingText]);
 
   const handleMoveToShelf = useCallback(() => {
     const texts = state.moveSelectedToShelf();
@@ -348,8 +363,8 @@ function App() {
               margin: 0,
               resize: "none",
               overflow: "hidden",
-              minWidth: 1,
-              minHeight: scaledLineHeight,
+              minWidth: 20,
+              minHeight: scaledLineHeight + 4,
               zIndex: 200,
               boxSizing: "content-box",
             }}
