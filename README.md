@@ -1,73 +1,88 @@
-# React + TypeScript + Vite
+# Notes Canvas
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An infinite canvas for visual note-taking, built with vanilla TypeScript and Canvas 2D in a Tauri desktop shell. Zero framework dependencies.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Drawing & Text**
+- Freehand drawing with smooth curve interpolation
+- Text with inline editing, word wrapping, and basic markdown rendering (`# headings`, `**bold**`, `*italic*`)
+- Drag-and-drop or paste images directly onto the canvas
+- Adjustable stroke width and color palette
 
-## React Compiler
+**Organization**
+- Drag Areas: dashed container regions that group shapes. Draw one around existing shapes or drag shapes into it.
+- Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup
+- Shelf Panel: right-side panel mirroring the canvas hierarchy with search, #tag filtering, and pinning
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Brainstorm Mode**
+- Click anywhere to open a persistent text input
+- Type and press Enter to place notes in an expanding spiral pattern
+- Input stays open for rapid sequential entry
 
-## Expanding the ESLint configuration
+**Canvas**
+- Infinite pan (middle-click or Hand tool) and zoom (scroll wheel)
+- Select, move, and resize shapes with handles
+- Alt/Option+drag to duplicate
+- Canvas bookmarks: save and restore named camera positions
+- Cross-platform paste and drag-drop (macOS, iOS, Windows, Linux)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Keyboard Shortcuts
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Key | Action |
+|-----|--------|
+| 1 | Select tool |
+| 2 | Hand (pan) tool |
+| 3 | Draw tool |
+| T | Text tool |
+| E | Erase tool |
+| A | Drag Area tool |
+| B | Toggle Brainstorm mode |
+| Delete/Backspace | Delete selected |
+| Cmd/Ctrl+G | Group selected |
+| Cmd/Ctrl+Shift+G | Ungroup |
+| Alt/Option+drag | Duplicate selection |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Getting Started
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+**Web development:**
+```bash
+npm run dev
+# Visit http://localhost:5173
+```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+**Desktop app (Tauri):**
+```bash
+npm run tauri:dev      # Dev with hot reload
+npm run tauri:build    # Production build
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Mobile (requires macOS with Xcode / Android Studio):**
+```bash
+npm run tauri:ios-init && npm run tauri:ios-dev
+npm run tauri:android-init && npm run tauri:android-dev
+```
+
+## Integration
+
+Notes Canvas is designed to be embedded in other applications:
+
+```typescript
+import { NotesCanvas } from "./notes-canvas";
+
+const canvas = new NotesCanvas(document.getElementById("mount")!);
+
+// Load/save shapes
+canvas.loadShapes(savedShapes);
+const shapes = canvas.getShapes();
+
+// Listen for changes
+canvas.on("change", () => persist(canvas.getShapes()));
+
+// Cleanup
+canvas.destroy();
 ```
