@@ -1,6 +1,7 @@
 import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
 import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
-import { getShapeBounds, wrapText } from "./utils";
+import { getShapeBounds } from "./utils";
+import { parseText } from "./markdown";
 
 export interface RenderState {
   shapes: Shape[];
@@ -142,12 +143,16 @@ export function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color
 }
 
 function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
-  const lineHeight = shape.fontSize * LINE_HEIGHT_RATIO;
-  const charWidth = shape.fontSize * 0.6;
-  const lines = shape.width && shape.width > 0
-    ? wrapText(shape.text, shape.width, charWidth)
-    : shape.text.split("\n");
+  const baseFontSize = shape.fontSize;
 
+  // Parse markdown into styled lines
+  const parsedLines = parseText(
+    shape.text,
+    shape.width && shape.width > 0 ? shape.width : undefined,
+    baseFontSize,
+  );
+
+  // Draw background if set
   if (shape.backgroundColor) {
     const hex = COLOR_PALETTE[shape.backgroundColor] || shape.backgroundColor;
     const bounds = getShapeBounds(shape);
@@ -161,11 +166,26 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
   }
 
   ctx.save();
-  ctx.font = `${shape.fontSize}px ${FONT_FAMILY}`;
   ctx.fillStyle = shape.color;
   ctx.textBaseline = "top";
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], shape.position.x, shape.position.y + i * lineHeight);
+
+  let y = shape.position.y;
+  for (const line of parsedLines) {
+    const lineScale = line.sizeScale;
+    const lineFontSize = baseFontSize * lineScale;
+    const lineH = lineFontSize * LINE_HEIGHT_RATIO;
+    let x = shape.position.x;
+
+    for (const run of line.runs) {
+      const weight = run.bold ? "bold" : "normal";
+      const style = run.italic ? "italic" : "normal";
+      const fontSize = baseFontSize * run.sizeScale;
+      ctx.font = `${style} ${weight} ${fontSize}px ${FONT_FAMILY}`;
+      ctx.fillText(run.text, x, y);
+      x += ctx.measureText(run.text).width;
+    }
+
+    y += lineH;
   }
   ctx.restore();
 }

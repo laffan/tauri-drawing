@@ -9,7 +9,7 @@ import { createShelfPanel } from "./ui/shelf-panel";
 import { createTextEditor } from "./ui/text-editor";
 import { createStatusBar } from "./ui/status-bar";
 
-export class RatchetCanvas {
+export class NotesCanvas {
   readonly container: HTMLElement;
   readonly state: DrawingState;
 

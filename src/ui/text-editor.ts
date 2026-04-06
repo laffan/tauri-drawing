@@ -28,6 +28,16 @@ export function createTextEditor(state: DrawingState): HTMLElement {
     state.notify("editingText");
   });
 
+  // In brainstorm mode, Enter commits text (Shift+Enter for newline)
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && state.brainstormMode && state.editingText) {
+      e.preventDefault();
+      state.commitText(state.editingText);
+      state.editingText = null;
+      state.notify("editingText");
+    }
+  });
+
   textarea.addEventListener("blur", () => {
     setTimeout(() => {
       if (!state.editingText) return;

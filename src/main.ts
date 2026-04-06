@@ -1,7 +1,7 @@
 import "./index.css";
-import { RatchetCanvas } from "./ratchet-canvas";
+import { NotesCanvas } from "./notes-canvas";
 
 const root = document.getElementById("root");
 if (root) {
-  new RatchetCanvas(root);
+  new NotesCanvas(root);
 }
