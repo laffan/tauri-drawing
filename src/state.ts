@@ -14,6 +14,7 @@ export interface EditingText {
   text: string;
   fontSize: number;
   color: string;
+  width?: number; // constraint width from existing shape
 }
 
 export type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
@@ -92,6 +93,7 @@ export class DrawingState extends EventTarget {
     this.editingText = {
       shapeId: shape.id, position: shape.position,
       text: shape.text, fontSize: shape.fontSize, color: shape.color,
+      width: shape.width,
     };
     this.notify("editingText");
   }
@@ -136,7 +138,7 @@ export class DrawingState extends EventTarget {
     }
     if (e.button !== 0) return;
 
-    const willEditText = this.tool === "text" || this.brainstormMode;
+    const willEditText = this.tool === "text" && !this.brainstormMode;
     if (!willEditText) canvas.setPointerCapture(e.pointerId);
 
     if (this.editingText) {
@@ -156,7 +158,8 @@ export class DrawingState extends EventTarget {
       this._isDrawing = true;
       this.currentStroke = [canvasPt];
       this.notify("currentStroke");
-    } else if (this.tool === "text" || this.brainstormMode) {
+    } else if (this.tool === "text" && !this.brainstormMode) {
+      // Text tool (not brainstorm — brainstorm has its own input widget)
       const hit = findShapeAtPoint(canvasPt, this.shapes);
       if (hit && hit.type === "text") {
         this.startEditingExistingText(hit);
@@ -164,6 +167,8 @@ export class DrawingState extends EventTarget {
         this.editingText = { shapeId: null, position: canvasPt, text: "", fontSize: this.fontSize, color: this.color };
         this.notify("editingText");
       }
+    } else if (this.brainstormMode) {
+      // Brainstorm mode — handled by brainstorm-input.ts widget, just skip
     } else if (this.tool === "select") {
       const handleHit = this.hitTestResizeHandles(canvasPt);
       if (handleHit) {

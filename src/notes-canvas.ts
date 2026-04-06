@@ -7,6 +7,7 @@ import { createSelectionToolbar } from "./ui/selection-toolbar";
 import { createBookmarksPanel } from "./ui/bookmarks-panel";
 import { createShelfPanel } from "./ui/shelf-panel";
 import { createTextEditor } from "./ui/text-editor";
+import { createBrainstormInput } from "./ui/brainstorm-input";
 import { createStatusBar } from "./ui/status-bar";
 
 export class NotesCanvas {
@@ -74,6 +75,7 @@ export class NotesCanvas {
 
     container.appendChild(createSelectionToolbar(this.state, () => this._moveToShelf()));
     container.appendChild(createTextEditor(this.state));
+    container.appendChild(createBrainstormInput(this.state));
     container.appendChild(createToolbar(this.state));
     container.appendChild(createBookmarksPanel(this.state));
     this._shelfPanel = createShelfPanel(this.state, shelfCallbacks);

@@ -77,10 +77,34 @@ export function createTextEditor(state: DrawingState): HTMLElement {
     // Sync value if different (avoid cursor jump)
     if (textarea.value !== et.text) textarea.value = et.text;
 
-    // Auto-resize
+    // Auto-resize — respect width constraint if the shape has one
+    const hasWidth = et.width && et.width > 0;
+    const scaledWidth = hasWidth ? et.width! * state.camera.zoom : 0;
+
+    if (hasWidth) {
+      // Fixed width: textarea wraps within the shape's width
+      textarea.style.whiteSpace = "pre-wrap";
+      textarea.style.wordBreak = "break-word";
+      textarea.style.width = scaledWidth + "px";
+      measureDiv.style.whiteSpace = "pre-wrap";
+      measureDiv.style.wordBreak = "break-word";
+      measureDiv.style.width = scaledWidth + "px";
+    } else {
+      // Auto-width: grow with content
+      textarea.style.whiteSpace = "pre";
+      textarea.style.wordBreak = "keep-all";
+      textarea.style.width = "auto";
+      measureDiv.style.whiteSpace = "pre";
+      measureDiv.style.wordBreak = "keep-all";
+      measureDiv.style.width = "auto";
+    }
+
     measureDiv.textContent = et.text || "\u00A0";
     if (et.text.endsWith("\n")) measureDiv.textContent += "\u00A0";
-    textarea.style.width = (measureDiv.scrollWidth + 2) + "px";
+
+    if (!hasWidth) {
+      textarea.style.width = (measureDiv.scrollWidth + 2) + "px";
+    }
     textarea.style.height = measureDiv.scrollHeight + "px";
 
     // Focus with delay
