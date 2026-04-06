@@ -145,11 +145,18 @@ export function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color
 function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
   const baseFontSize = shape.fontSize;
 
+  // Measure function using the render context for accurate width
+  const measure = (text: string, fontSize: number): number => {
+    ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+    return ctx.measureText(text).width;
+  };
+
   // Parse markdown into styled lines
   const parsedLines = parseText(
     shape.text,
     shape.width && shape.width > 0 ? shape.width : undefined,
     baseFontSize,
+    measure,
   );
 
   // Draw background if set

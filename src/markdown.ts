@@ -79,12 +79,13 @@ function parseInlineFormatting(text: string, sizeScale: number): TextRun[] {
 
 /**
  * Parse a full multi-line text into an array of ParsedLines.
- * Handles wrapping within a width constraint (character-approximate).
+ * Handles wrapping within a width constraint using canvas measurement.
  */
 export function parseText(
   text: string,
   constraintWidth?: number,
   baseFontSize?: number,
+  measureFn?: (text: string, fontSize: number) => number,
 ): ParsedLine[] {
   const rawLines = text.split("\n");
   const result: ParsedLine[] = [];
@@ -92,21 +93,19 @@ export function parseText(
   for (const rawLine of rawLines) {
     const parsed = parseLine(rawLine);
 
-    if (constraintWidth && constraintWidth > 0 && baseFontSize) {
-      // Word-wrap this line within the constraint
-      const charWidth = baseFontSize * parsed.sizeScale * 0.6;
-      const maxChars = Math.max(1, Math.floor(constraintWidth / charWidth));
+    if (constraintWidth && constraintWidth > 0 && baseFontSize && measureFn) {
+      const fontSize = baseFontSize * parsed.sizeScale;
       const fullText = parsed.runs.map((r) => r.text).join("");
 
-      if (fullText.length <= maxChars) {
+      if (measureFn(fullText, fontSize) <= constraintWidth) {
         result.push(parsed);
       } else {
-        // Simple word-wrap, re-parse each wrapped line to preserve formatting
+        // Word-wrap using real measurement, re-parse each wrapped line
         const words = fullText.split(" ");
         let currentLine = "";
         for (const word of words) {
           const test = currentLine ? currentLine + " " + word : word;
-          if (test.length > maxChars && currentLine.length > 0) {
+          if (measureFn(test, fontSize) > constraintWidth && currentLine.length > 0) {
             result.push(parseLine((parsed.sizeScale > 1 ? "#".repeat(getHeadingLevel(parsed.sizeScale)) + " " : "") + currentLine));
             currentLine = word;
           } else {

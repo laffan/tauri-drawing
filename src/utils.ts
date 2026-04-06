@@ -1,4 +1,4 @@
-import { LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
+import { LINE_HEIGHT_RATIO, FONT_FAMILY, COLOR_PALETTE } from "./types";
 import type { Bounds, Camera, DragAreaShape, Point, Shape } from "./types";
 
 let nextId = 0;
@@ -60,6 +60,22 @@ export function getPointsBounds(points: Point[]): Bounds {
   return { minX, minY, maxX, maxY };
 }
 
+// Offscreen canvas for accurate text measurement
+let _measureCtx: CanvasRenderingContext2D | null = null;
+function getMeasureCtx(): CanvasRenderingContext2D {
+  if (!_measureCtx) {
+    const c = document.createElement("canvas");
+    _measureCtx = c.getContext("2d")!;
+  }
+  return _measureCtx;
+}
+
+export function measureTextWidth(text: string, fontSize: number): number {
+  const ctx = getMeasureCtx();
+  ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+  return ctx.measureText(text).width;
+}
+
 export function getTextBounds(
   position: Point,
   text: string,
@@ -67,11 +83,10 @@ export function getTextBounds(
   constraintWidth?: number,
 ): Bounds {
   const lineHeight = fontSize * LINE_HEIGHT_RATIO;
-  const charWidth = fontSize * 0.6;
 
   if (constraintWidth && constraintWidth > 0) {
-    // Wrap text to constraint width and measure
-    const wrapped = wrapText(text, constraintWidth, charWidth);
+    // Wrap text to constraint width and measure actual wrapped lines
+    const wrapped = wrapTextMeasured(text, constraintWidth, fontSize);
     const height = wrapped.length * lineHeight;
     return {
       minX: position.x,
@@ -81,9 +96,9 @@ export function getTextBounds(
     };
   }
 
-  // Auto-size: measure natural width
+  // Auto-size: measure actual rendered width using canvas
   const lines = text.split("\n");
-  const maxLineWidth = Math.max(...lines.map((l) => l.length)) * charWidth;
+  const maxLineWidth = Math.max(...lines.map((l) => measureTextWidth(l, fontSize)));
   const height = lines.length * lineHeight;
   return {
     minX: position.x,
@@ -91,6 +106,27 @@ export function getTextBounds(
     maxX: position.x + Math.max(maxLineWidth, 20),
     maxY: position.y + Math.max(height, lineHeight),
   };
+}
+
+/** Word-wrap using accurate canvas text measurement */
+export function wrapTextMeasured(text: string, maxWidth: number, fontSize: number): string[] {
+  const result: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    if (paragraph.length === 0) { result.push(""); continue; }
+    const words = paragraph.split(" ");
+    let line = "";
+    for (const word of words) {
+      const test = line ? line + " " + word : word;
+      if (measureTextWidth(test, fontSize) > maxWidth && line.length > 0) {
+        result.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) result.push(line);
+  }
+  return result.length > 0 ? result : [""];
 }
 
 /** Word-wrap text to fit within a pixel width (approximate, character-based) */
