@@ -2,6 +2,7 @@ import type { Shape } from "./types";
 import { DrawingState } from "./state";
 import { render } from "./renderer";
 import { bindInputEvents } from "./input-handler";
+import { screenToCanvas } from "./utils";
 import { createToolbar } from "./ui/toolbar";
 import { createSelectionToolbar } from "./ui/selection-toolbar";
 import { createBookmarksPanel } from "./ui/bookmarks-panel";
@@ -54,7 +55,7 @@ export class NotesCanvas {
 
     // Update cursor on tool change
     const cursorMap: Record<string, string> = {
-      select: "default", hand: "grab", draw: "crosshair",
+      select: "default", hand: "grab",
       text: "text", erase: "pointer", "drag-area": "crosshair", brainstorm: "text",
     };
     this.state.addEventListener("change", () => {
@@ -64,10 +65,37 @@ export class NotesCanvas {
     // Image cache management
     this.state.addEventListener("change", () => this._syncImageCache());
 
+    // Handle shelf item drops on canvas
+    this._canvas.addEventListener("dragover", (e) => {
+      if (e.dataTransfer?.types.includes("application/x-shelf-index")) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      }
+    });
+    this._canvas.addEventListener("drop", (e) => {
+      const indexStr = e.dataTransfer?.getData("application/x-shelf-index");
+      if (indexStr == null) return;
+      e.preventDefault();
+      const idx = parseInt(indexStr, 10);
+      if (idx < 0 || idx >= this._shelfItems.length) return;
+      const text = this._shelfItems[idx];
+      const rect = this._canvas.getBoundingClientRect();
+      const dropPos = screenToCanvas({ x: e.clientX - rect.left, y: e.clientY - rect.top }, this.state.camera);
+      this.state.addTextShapeAtPosition(text, dropPos);
+      this._shelfItems.splice(idx, 1);
+      this._rebuildShelf();
+    });
+
     // Build UI
     const shelfCallbacks = {
       shelfItems: this._shelfItems,
       onRemoveShelfItem: (i: number) => {
+        this._shelfItems.splice(i, 1);
+        this._rebuildShelf();
+      },
+      onRestoreShelfItem: (i: number) => {
+        const text = this._shelfItems[i];
+        this.state.addTextShapeAtCenter(text);
         this._shelfItems.splice(i, 1);
         this._rebuildShelf();
       },
@@ -82,6 +110,9 @@ export class NotesCanvas {
     container.appendChild(this._shelfPanel);
     container.appendChild(createStatusBar(this.state));
 
+    // Initialize undo history with empty canvas
+    this.state.initHistory();
+
     // Start render loop
     this._startRenderLoop();
   }
@@ -90,6 +121,7 @@ export class NotesCanvas {
 
   loadShapes(shapes: Shape[]) {
     this.state.shapes = shapes;
+    this.state.initHistory();
     this.state.notify("shapes");
   }
 
@@ -113,13 +145,10 @@ export class NotesCanvas {
     const loop = () => {
       render(this._canvas, {
         shapes: this.state.shapes,
-        currentStroke: this.state.currentStroke,
         selectedIds: this.state.selectedIds,
         camera: this.state.camera,
         selectionBox: this.state.selectionBox,
         creatingDragArea: this.state.creatingDragArea,
-        color: this.state.color,
-        strokeWidth: this.state.strokeWidth,
         editingShapeId: this.state.editingText?.shapeId ?? null,
         imageCache: this._imageCache,
       });

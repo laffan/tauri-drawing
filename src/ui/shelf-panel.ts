@@ -10,7 +10,7 @@ interface ShelfNode {
 
 export function createShelfPanel(
   state: DrawingState,
-  opts: { shelfItems: string[]; onRemoveShelfItem: (i: number) => void },
+  opts: { shelfItems: string[]; onRemoveShelfItem: (i: number) => void; onRestoreShelfItem: (i: number) => void },
 ): HTMLElement {
   let isOpen = false;
   let search = "";
@@ -120,7 +120,16 @@ export function createShelfPanel(
       const section = h("div", { style: { padding: "4px 8px", borderBottom: "1px solid #f1f3f5" } });
       section.appendChild(h("div", { text: "Shelf Items", style: { fontSize: "11px", fontWeight: "600", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
       opts.shelfItems.forEach((text, i) => {
-        const row = h("div", { style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 0", fontSize: "13px", borderBottom: "1px solid #f8f9fa" } });
+        const row = h("div", {
+          style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 0", fontSize: "13px", borderBottom: "1px solid #f8f9fa", cursor: "grab" },
+          attrs: { draggable: "true" },
+        });
+        row.addEventListener("dragstart", (e) => {
+          if (e.dataTransfer) {
+            e.dataTransfer.setData("application/x-shelf-index", String(i));
+            e.dataTransfer.effectAllowed = "move";
+          }
+        });
         row.appendChild(h("span", { text, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }));
         row.appendChild(h("button", { text: "×", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5" }, onClick: () => opts.onRemoveShelfItem(i) }));
         section.appendChild(row);

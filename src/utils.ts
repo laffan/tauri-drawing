@@ -83,28 +83,30 @@ export function getTextBounds(
   constraintWidth?: number,
 ): Bounds {
   const lineHeight = fontSize * LINE_HEIGHT_RATIO;
+  // Extra padding accounts for font descenders (g, p, y, etc.)
+  const descenderPad = fontSize * 0.25;
 
   if (constraintWidth && constraintWidth > 0) {
     // Wrap text to constraint width and measure actual wrapped lines
     const wrapped = wrapTextMeasured(text, constraintWidth, fontSize);
-    const height = wrapped.length * lineHeight;
+    const height = wrapped.length * lineHeight + descenderPad;
     return {
       minX: position.x,
       minY: position.y,
       maxX: position.x + constraintWidth,
-      maxY: position.y + Math.max(height, lineHeight),
+      maxY: position.y + Math.max(height, lineHeight + descenderPad),
     };
   }
 
   // Auto-size: measure actual rendered width using canvas
   const lines = text.split("\n");
   const maxLineWidth = Math.max(...lines.map((l) => measureTextWidth(l, fontSize)));
-  const height = lines.length * lineHeight;
+  const height = lines.length * lineHeight + descenderPad;
   return {
     minX: position.x,
     minY: position.y,
     maxX: position.x + Math.max(maxLineWidth, 20),
-    maxY: position.y + Math.max(height, lineHeight),
+    maxY: position.y + Math.max(height, lineHeight + descenderPad),
   };
 }
 

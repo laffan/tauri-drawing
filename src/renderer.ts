@@ -5,13 +5,10 @@ import { parseText } from "./markdown";
 
 export interface RenderState {
   shapes: Shape[];
-  currentStroke: Point[] | null;
   selectedIds: Set<string>;
   camera: Camera;
   selectionBox: SelectionBox | null;
   creatingDragArea: { start: Point; end: Point } | null;
-  color: string;
-  strokeWidth: number;
   editingShapeId: string | null;
   imageCache: Map<string, HTMLImageElement>;
 }
@@ -28,7 +25,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     canvas.height = h * dpr;
   }
 
-  const { camera, shapes, currentStroke, selectedIds, selectionBox, creatingDragArea, color, strokeWidth, editingShapeId, imageCache } = state;
+  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache } = state;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -52,10 +49,6 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
     else if (shape.type === "text") drawTextShape(ctx, shape);
     else if (shape.type === "image") drawImageShape(ctx, shape, imageCache);
-  }
-
-  if (currentStroke && currentStroke.length > 0) {
-    drawStroke(ctx, currentStroke, color, strokeWidth);
   }
 
   if (creatingDragArea) {
@@ -166,7 +159,7 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
     const pad = 4;
     ctx.save();
     ctx.fillStyle = hex;
-    ctx.globalAlpha = 0.3;
+    ctx.globalAlpha = 0.9;
     ctx.fillRect(bounds.minX - pad, bounds.minY - pad, bounds.maxX - bounds.minX + pad * 2, bounds.maxY - bounds.minY + pad * 2);
     ctx.globalAlpha = 1;
     ctx.restore();

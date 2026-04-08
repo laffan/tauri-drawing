@@ -1,5 +1,5 @@
 // === Tools ===
-export type Tool = "select" | "hand" | "draw" | "text" | "erase" | "drag-area" | "brainstorm";
+export type Tool = "select" | "hand" | "text" | "erase" | "drag-area" | "brainstorm";
 
 // === Geometry ===
 export interface Point {

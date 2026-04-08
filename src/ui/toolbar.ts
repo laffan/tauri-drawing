@@ -7,7 +7,6 @@ interface ToolDef { icon: string; label: string; tool: Tool | "brainstorm"; shor
 const TOOLS: ToolDef[] = [
   { icon: "👆", label: "Select", tool: "select", shortcut: "1" },
   { icon: "✋", label: "Hand", tool: "hand", shortcut: "2" },
-  { icon: "✏️", label: "Draw", tool: "draw", shortcut: "3" },
   { icon: "T", label: "Text", tool: "text", shortcut: "T" },
   { icon: "🗑", label: "Erase", tool: "erase", shortcut: "E" },
 ];

@@ -37,7 +37,6 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
     switch (e.key) {
       case "1": state.tool = "select"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
       case "2": state.tool = "hand"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
-      case "3": state.tool = "draw"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
       case "t": case "T": state.tool = "text"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
       case "e": case "E": state.tool = "erase"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
       case "a": case "A":
@@ -56,6 +55,19 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
           e.preventDefault();
           if (e.shiftKey) state.ungroupSelected();
           else state.groupSelected();
+        }
+        break;
+      case "z": case "Z":
+        if (e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          if (e.shiftKey) state.redo();
+          else state.undo();
+        }
+        break;
+      case "y": case "Y":
+        if (e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          state.redo();
         }
         break;
     }

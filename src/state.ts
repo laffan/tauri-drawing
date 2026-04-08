@@ -1,12 +1,13 @@
 import type {
-  Camera, CameraBookmark, DragAreaShape, DrawShape, ImageShape,
+  Camera, CameraBookmark, DragAreaShape, ImageShape,
   Point, SelectionBox, Shape, TextShape, Tool,
 } from "./types";
 import { COLOR_PALETTE } from "./types";
 import {
-  alignShapes, boundsOverlap, findDragAreaAtPoint, generateId,
+  alignShapes, boundsOverlap, generateId,
   getShapeBounds, hitTestShape, pointInBounds, screenToCanvas,
 } from "./utils";
+import { UndoManager } from "./undo-manager";
 
 export interface EditingText {
   shapeId: string | null;
@@ -20,17 +21,15 @@ export interface EditingText {
 export type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
 const HANDLE_SIZE = 8;
 
-type StateKey = "shapes" | "currentStroke" | "selectedIds" | "tool" | "color"
-  | "strokeWidth" | "fontSize" | "camera" | "selectionBox" | "editingText"
+type StateKey = "shapes" | "selectedIds" | "tool" | "color"
+  | "fontSize" | "camera" | "selectionBox" | "editingText"
   | "bookmarks" | "brainstormMode" | "creatingDragArea";
 
 export class DrawingState extends EventTarget {
   shapes: Shape[] = [];
-  currentStroke: Point[] | null = null;
   selectedIds: Set<string> = new Set();
-  tool: Tool = "select";
+  tool: Tool = "text";
   color = "#000000";
-  strokeWidth = 2;
   fontSize = 18;
   camera: Camera = { x: 0, y: 0, zoom: 1 };
   selectionBox: SelectionBox | null = null;
@@ -40,6 +39,36 @@ export class DrawingState extends EventTarget {
   creatingDragArea: { start: Point; end: Point } | null = null;
 
   canvasEl: HTMLCanvasElement | null = null;
+
+  // Undo/redo
+  private _undo = new UndoManager();
+
+  /** Record current shapes as an undo checkpoint. Call after completed actions. */
+  recordHistory() { this._undo.record(this.shapes); }
+
+  /** Initialize undo history (call after loading shapes). */
+  initHistory() { this._undo.init(this.shapes); }
+
+  undo() {
+    const snapshot = this._undo.undo();
+    if (!snapshot) return;
+    this.shapes = snapshot;
+    this.selectedIds = new Set();
+    this.notify("shapes");
+    this.notify("selectedIds");
+  }
+
+  redo() {
+    const snapshot = this._undo.redo();
+    if (!snapshot) return;
+    this.shapes = snapshot;
+    this.selectedIds = new Set();
+    this.notify("shapes");
+    this.notify("selectedIds");
+  }
+
+  get canUndo() { return this._undo.canUndo; }
+  get canRedo() { return this._undo.canRedo; }
 
   // Private interaction state (replaces useRef)
   private _isPanning = false;
@@ -76,17 +105,25 @@ export class DrawingState extends EventTarget {
   commitText(editing: EditingText) {
     const trimmed = editing.text.trim();
     if (!trimmed) return;
+    let shapeId: string;
     if (editing.shapeId) {
+      shapeId = editing.shapeId;
       this.shapes = this.shapes.map((s) =>
         s.id === editing.shapeId && s.type === "text" ? { ...s, text: trimmed } : s
       );
     } else {
+      shapeId = generateId();
       this.shapes = [...this.shapes, {
-        id: generateId(), type: "text", position: editing.position,
+        id: shapeId, type: "text", position: editing.position,
         text: trimmed, fontSize: editing.fontSize, color: editing.color,
       } as TextShape];
     }
+    this.selectedIds = new Set([shapeId]);
+    this.tool = "select";
+    this.recordHistory();
     this.notify("shapes");
+    this.notify("selectedIds");
+    this.notify("tool");
   }
 
   startEditingExistingText(shape: TextShape) {
@@ -138,14 +175,15 @@ export class DrawingState extends EventTarget {
     }
     if (e.button !== 0) return;
 
-    const willEditText = this.tool === "text" && !this.brainstormMode;
-    if (!willEditText) canvas.setPointerCapture(e.pointerId);
-
     if (this.editingText) {
       this.commitText(this.editingText);
       this.editingText = null;
       this.notify("editingText");
+      return; // commit ends the interaction; next click starts fresh
     }
+
+    const willEditText = this.tool === "text" && !this.brainstormMode;
+    if (!willEditText) canvas.setPointerCapture(e.pointerId);
 
     if (this.tool === "hand") {
       this._isPanning = true;
@@ -154,11 +192,7 @@ export class DrawingState extends EventTarget {
       return;
     }
 
-    if (this.tool === "draw") {
-      this._isDrawing = true;
-      this.currentStroke = [canvasPt];
-      this.notify("currentStroke");
-    } else if (this.tool === "text" && !this.brainstormMode) {
+    if (this.tool === "text" && !this.brainstormMode) {
       // Text tool (not brainstorm — brainstorm has its own input widget)
       const hit = findShapeAtPoint(canvasPt, this.shapes);
       if (hit && hit.type === "text") {
@@ -238,12 +272,17 @@ export class DrawingState extends EventTarget {
   }
 
   handleDoubleClick(e: MouseEvent) {
-    if (this.tool !== "select" || !this.canvasEl) return;
+    if (!this.canvasEl || this.brainstormMode) return;
     const rect = this.canvasEl.getBoundingClientRect();
     const screenPt: Point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const canvasPt = screenToCanvas(screenPt, this.camera);
     const hit = findShapeAtPoint(canvasPt, this.shapes);
-    if (hit && hit.type === "text") this.startEditingExistingText(hit);
+    if (hit && hit.type === "text") {
+      this.startEditingExistingText(hit);
+    } else {
+      this.editingText = { shapeId: null, position: canvasPt, text: "", fontSize: this.fontSize, color: this.color };
+      this.notify("editingText");
+    }
   }
 
   handlePointerMove(e: PointerEvent) {
@@ -290,10 +329,7 @@ export class DrawingState extends EventTarget {
       return;
     }
 
-    if (this.tool === "draw" && this._isDrawing) {
-      this.currentStroke = this.currentStroke ? [...this.currentStroke, canvasPt] : [canvasPt];
-      this.notify("currentStroke");
-    } else if (this.tool === "select" && this._selectStart) {
+    if (this.tool === "select" && this._selectStart) {
       this.selectionBox = { start: this._selectStart, end: canvasPt };
       this.notify("selectionBox");
     } else if (this.tool === "erase" && this._isDrawing) {
@@ -323,6 +359,7 @@ export class DrawingState extends EventTarget {
         if (newParent !== s.parentId) return { ...s, parentId: newParent };
         return s;
       });
+      this.recordHistory();
       this.notify("shapes");
       return;
     }
@@ -332,20 +369,11 @@ export class DrawingState extends EventTarget {
       this._resizeHandle = null;
       this._resizeOrigShape = null;
       this._resizeOrigBounds = null;
+      this.recordHistory();
       return;
     }
 
-    if (this.tool === "draw" && this._isDrawing && this.currentStroke) {
-      const dragArea = findDragAreaAtPoint(this.currentStroke[0], this.shapes);
-      const newShape: DrawShape = {
-        id: generateId(), type: "draw", points: this.currentStroke,
-        color: "#ffb3ba", width: this.strokeWidth, parentId: dragArea?.id,
-      };
-      this.shapes = [...this.shapes, newShape];
-      this.currentStroke = null;
-      this.notify("shapes");
-      this.notify("currentStroke");
-    } else if (this.tool === "select" && this.selectionBox) {
+    if (this.tool === "select" && this.selectionBox) {
       const box = normalizeBox(this.selectionBox);
       const hits = this.shapes.filter((s) => boundsOverlap(getShapeBounds(s), box));
       if (e.shiftKey) {
@@ -376,11 +404,15 @@ export class DrawingState extends EventTarget {
           return s;
         }), newArea];
         this.tool = "select";
+        this.recordHistory();
         this.notify("tool");
       }
       this.creatingDragArea = null;
       this.notify("shapes");
       this.notify("creatingDragArea");
+    }
+    if (this._isDrawing && this.tool === "erase") {
+      this.recordHistory();
     }
     this._isDrawing = false;
   }
@@ -409,11 +441,13 @@ export class DrawingState extends EventTarget {
   }
 
   deleteSelected() {
+    if (this.selectedIds.size === 0) return;
     const deletingIds = new Set(this.selectedIds);
     this.shapes = this.shapes
       .filter((s) => !deletingIds.has(s.id))
       .map((s) => s.parentId && deletingIds.has(s.parentId) ? { ...s, parentId: undefined } : s);
     this.selectedIds = new Set();
+    this.recordHistory();
     this.notify("shapes");
     this.notify("selectedIds");
   }
@@ -422,17 +456,20 @@ export class DrawingState extends EventTarget {
     if (this.selectedIds.size < 2) return;
     const gid = generateId();
     this.shapes = this.shapes.map((s) => this.selectedIds.has(s.id) ? { ...s, groupId: gid } : s);
+    this.recordHistory();
     this.notify("shapes");
   }
 
   ungroupSelected() {
     this.shapes = this.shapes.map((s) => this.selectedIds.has(s.id) ? { ...s, groupId: undefined } : s);
+    this.recordHistory();
     this.notify("shapes");
   }
 
   changeSelectedColor(colorName: string) {
     const hex = COLOR_PALETTE[colorName] || colorName;
     this.shapes = this.shapes.map((s) => this.selectedIds.has(s.id) ? { ...s, color: hex } : s);
+    this.recordHistory();
     this.notify("shapes");
   }
 
@@ -448,6 +485,7 @@ export class DrawingState extends EventTarget {
       }
       return s;
     });
+    this.recordHistory();
     this.notify("shapes");
   }
 
@@ -457,6 +495,7 @@ export class DrawingState extends EventTarget {
     const aligned = alignShapes(selected, direction);
     const map = new Map(aligned.map((s) => [s.id, s]));
     this.shapes = this.shapes.map((s) => map.get(s.id) || s);
+    this.recordHistory();
     this.notify("shapes");
   }
 
@@ -480,17 +519,20 @@ export class DrawingState extends EventTarget {
       id: generateId(), type: "image", position: { x: pos.x - dw / 2, y: pos.y - dh / 2 },
       width: dw, height: dh, dataUrl, name, color: "#000000",
     } as ImageShape];
+    this.recordHistory();
     this.notify("shapes");
   }
 
   addTextShapeAtCenter(text: string) {
     const pos = screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, this.camera);
     this.shapes = [...this.shapes, { id: generateId(), type: "text", position: pos, text, fontSize: 18, color: "#000000" } as TextShape];
+    this.recordHistory();
     this.notify("shapes");
   }
 
   addTextShapeAtPosition(text: string, position: Point) {
     this.shapes = [...this.shapes, { id: generateId(), type: "text", position, text, fontSize: 18, color: "#000000" } as TextShape];
+    this.recordHistory();
     this.notify("shapes");
   }
 
@@ -514,6 +556,7 @@ export class DrawingState extends EventTarget {
     }
     this.shapes = remaining;
     this.selectedIds = new Set();
+    this.recordHistory();
     this.notify("shapes");
     this.notify("selectedIds");
     return texts;

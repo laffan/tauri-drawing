@@ -70,7 +70,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     container.style.top = (topLeft.y - 44) + "px";
 
     const hasText = selected.some((s) => s.type === "text");
-    const hasColorable = selected.some((s) => s.type === "text" || s.type === "draw");
+    const hasColorable = selected.some((s) => s.type === "text");
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
     const multiSelect = selected.length > 1;
 

@@ -97,6 +97,7 @@ export function createBrainstormInput(state: DrawingState): HTMLElement {
         color: state.color,
       };
       state.shapes = [...state.shapes, newShape];
+      state.recordHistory();
       state.notify("shapes");
 
       input.value = "";

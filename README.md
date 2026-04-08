@@ -4,16 +4,16 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 
 ## Features
 
-**Drawing & Text**
-- Freehand drawing with smooth curve interpolation
+**Text & Images**
 - Text with inline editing, word wrapping, and basic markdown rendering (`# headings`, `**bold**`, `*italic*`)
+- Double-click anywhere to create new text; click outside or press Escape to confirm and select
+- Text and background color pickers in the selection toolbar
 - Drag-and-drop or paste images directly onto the canvas
-- Adjustable stroke width and color palette
 
 **Organization**
 - Drag Areas: dashed container regions that group shapes. Draw one around existing shapes or drag shapes into it.
 - Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup
-- Shelf Panel: right-side panel mirroring the canvas hierarchy with search, #tag filtering, and pinning
+- Shelf Panel: right-side panel mirroring the canvas hierarchy with search, #tag filtering, pinning, and drag-to-restore
 
 **Brainstorm Mode**
 - Click anywhere to open a persistent text input
@@ -24,6 +24,7 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - Infinite pan (middle-click or Hand tool) and zoom (scroll wheel)
 - Select, move, and resize shapes with handles
 - Alt/Option+drag to duplicate
+- Undo/redo (Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z)
 - Canvas bookmarks: save and restore named camera positions
 - Cross-platform paste and drag-drop (macOS, iOS, Windows, Linux)
 
@@ -33,12 +34,13 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 |-----|--------|
 | 1 | Select tool |
 | 2 | Hand (pan) tool |
-| 3 | Draw tool |
-| T | Text tool |
+| T | Text tool (default) |
 | E | Erase tool |
 | A | Drag Area tool |
 | B | Toggle Brainstorm mode |
 | Delete/Backspace | Delete selected |
+| Cmd/Ctrl+Z | Undo |
+| Cmd/Ctrl+Shift+Z | Redo |
 | Cmd/Ctrl+G | Group selected |
 | Cmd/Ctrl+Shift+G | Ungroup |
 | Alt/Option+drag | Duplicate selection |
