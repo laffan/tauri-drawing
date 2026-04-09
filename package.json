@@ -30,6 +30,8 @@
     "vite": "^8.0.1"
   },
   "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-fs": "^2.5.0",
     "jszip": "^3.10.1"
   }
 }
