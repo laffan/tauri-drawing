@@ -10,6 +10,13 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
 
   let colorPickerEl: HTMLElement | null = null;
   let bgPickerEl: HTMLElement | null = null;
+  let sizeSliderEl: HTMLElement | null = null;
+
+  function closePopups() {
+    if (colorPickerEl) { colorPickerEl.remove(); colorPickerEl = null; }
+    if (bgPickerEl) { bgPickerEl.remove(); bgPickerEl = null; }
+    if (sizeSliderEl) { sizeSliderEl.remove(); sizeSliderEl = null; }
+  }
 
   function makeIconBtn(icon: string, title: string, onClick: () => void): HTMLButtonElement {
     return h("button", {
@@ -40,6 +47,28 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
         });
       }),
     });
+  }
+
+  function makeSizeSlider(currentSize: number, onChange: (size: number) => void): HTMLElement {
+    const panel = h("div", {
+      style: { position: "absolute", top: "-44px", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: "#fff", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: "300", whiteSpace: "nowrap" },
+    });
+    const slider = h("input", {
+      attrs: { type: "range", min: "10", max: "72", step: "1" },
+      style: { width: "100px" },
+    }) as HTMLInputElement;
+    slider.value = String(currentSize);
+    const label = h("span", { text: `${currentSize}px`, style: { fontSize: "11px", color: "#666", minWidth: "32px" } });
+    slider.addEventListener("input", () => {
+      const v = parseInt(slider.value, 10);
+      label.textContent = `${v}px`;
+      onChange(v);
+    });
+    panel.appendChild(h("span", { text: "A", style: { fontSize: "10px", color: "#999" } }));
+    panel.appendChild(slider);
+    panel.appendChild(h("span", { text: "A", style: { fontSize: "16px", fontWeight: "600", color: "#555" } }));
+    panel.appendChild(label);
+    return panel;
   }
 
   function update() {
@@ -79,37 +108,53 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
 
     if (hasColorable) {
       const wrapper = h("div", { style: { position: "relative" } });
-      wrapper.appendChild(makeIconBtn("🖍️", "Text color", () => {
-        if (colorPickerEl) { colorPickerEl.remove(); colorPickerEl = null; }
-        else {
-          if (bgPickerEl) { bgPickerEl.remove(); bgPickerEl = null; }
-          colorPickerEl = makePalette(TEXT_COLORS, (c) => {
-            state.changeSelectedColor(c === "reset" ? "black" : c);
-            if (colorPickerEl) { colorPickerEl.remove(); colorPickerEl = null; }
-          });
-          wrapper.appendChild(colorPickerEl);
-        }
+      wrapper.appendChild(makeIconBtn("\ud83d\udd8d\ufe0f", "Text color", () => {
+        const wasOpen = !!colorPickerEl;
+        closePopups();
+        if (wasOpen) return;
+        colorPickerEl = makePalette(TEXT_COLORS, (c) => {
+          state.changeSelectedColor(c === "reset" ? "black" : c);
+          closePopups();
+        });
+        wrapper.appendChild(colorPickerEl);
       }));
       container.appendChild(wrapper);
     }
 
     if (hasBgable) {
       const wrapper = h("div", { style: { position: "relative" } });
-      wrapper.appendChild(makeIconBtn("🪣", "Background", () => {
-        if (bgPickerEl) { bgPickerEl.remove(); bgPickerEl = null; }
-        else {
-          if (colorPickerEl) { colorPickerEl.remove(); colorPickerEl = null; }
-          bgPickerEl = makePalette(BACKGROUND_COLORS, (c) => {
-            state.changeSelectedBackground(c);
-            if (bgPickerEl) { bgPickerEl.remove(); bgPickerEl = null; }
-          });
-          wrapper.appendChild(bgPickerEl);
-        }
+      wrapper.appendChild(makeIconBtn("\ud83e\udea3", "Background", () => {
+        const wasOpen = !!bgPickerEl;
+        closePopups();
+        if (wasOpen) return;
+        bgPickerEl = makePalette(BACKGROUND_COLORS, (c) => {
+          state.changeSelectedBackground(c);
+          closePopups();
+        });
+        wrapper.appendChild(bgPickerEl);
       }));
       container.appendChild(wrapper);
     }
 
-    container.appendChild(makeIconBtn("🗑", "Delete", () => state.deleteSelected()));
+    // Font size slider
+    if (hasText) {
+      const wrapper = h("div", { style: { position: "relative" } });
+      wrapper.appendChild(makeIconBtn("\ud83d\udd0d", "Text size", () => {
+        const wasOpen = !!sizeSliderEl;
+        closePopups();
+        if (wasOpen) return;
+        // Get current font size from first selected text shape
+        const textShape = selected.find((s) => s.type === "text");
+        const currentSize = textShape && textShape.type === "text" ? textShape.fontSize : 18;
+        sizeSliderEl = makeSizeSlider(currentSize, (size) => {
+          state.changeSelectedFontSize(size);
+        });
+        wrapper.appendChild(sizeSliderEl);
+      }));
+      container.appendChild(wrapper);
+    }
+
+    container.appendChild(makeIconBtn("\ud83d\uddd1", "Delete", () => state.deleteSelected()));
   }
 
   state.addEventListener("change", update);

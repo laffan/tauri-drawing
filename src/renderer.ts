@@ -15,6 +15,7 @@ export interface RenderState {
   theme: CanvasTheme;
   backgroundPattern: "grid" | "dot-grid" | "blank";
   gridSpacing: number;
+  gridOpacity: number;
 }
 
 export function render(canvas: HTMLCanvasElement, state: RenderState): void {
@@ -29,7 +30,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     canvas.height = h * dpr;
   }
 
-  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache, theme, backgroundPattern, gridSpacing } = state;
+  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache, theme, backgroundPattern, gridSpacing, gridOpacity } = state;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -37,8 +38,8 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   ctx.fillStyle = theme.canvasBackground;
   ctx.fillRect(0, 0, w, h);
 
-  if (backgroundPattern !== "blank") {
-    drawBackground(ctx, camera, w, h, theme.gridColor, backgroundPattern, gridSpacing);
+  if (backgroundPattern !== "blank" && gridOpacity > 0) {
+    drawBackground(ctx, camera, w, h, theme.gridColor, backgroundPattern, gridSpacing, gridOpacity);
   }
 
   ctx.save();
@@ -194,8 +195,19 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: C
       const style = run.italic ? "italic" : "normal";
       const fontSize = baseFontSize * run.sizeScale;
       ctx.font = `${style} ${weight} ${fontSize}px ${FONT_FAMILY}`;
+      if (run.link) ctx.fillStyle = theme.accent;
+      else ctx.fillStyle = isHeading ? headingColor : textColor;
       ctx.fillText(run.text, x, y);
-      x += ctx.measureText(run.text).width;
+      const runW = ctx.measureText(run.text).width;
+      if (run.link) {
+        ctx.beginPath();
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 1;
+        ctx.moveTo(x, y + fontSize + 1);
+        ctx.lineTo(x + runW, y + fontSize + 1);
+        ctx.stroke();
+      }
+      x += runW;
     }
 
     y += lineH;
@@ -270,12 +282,13 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, box: SelectionBox, came
   ctx.restore();
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number, color: string, pattern: "grid" | "dot-grid", spacing: number) {
+function drawBackground(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number, color: string, pattern: "grid" | "dot-grid", spacing: number, opacity: number) {
   const scaledSize = spacing * camera.zoom;
   if (scaledSize < 6) return;
   const offsetX = camera.x % scaledSize;
   const offsetY = camera.y % scaledSize;
   ctx.save();
+  ctx.globalAlpha = opacity;
   if (pattern === "grid") {
     ctx.strokeStyle = color;
     ctx.lineWidth = 0.5;

@@ -8,6 +8,8 @@ export interface TextRun {
   italic: boolean;
   /** Font size multiplier relative to base (1.0 = normal) */
   sizeScale: number;
+  /** If set, this run is a link */
+  link?: string;
 }
 
 export interface ParsedLine {
@@ -39,37 +41,33 @@ export function parseLine(line: string): ParsedLine {
  */
 function parseInlineFormatting(text: string, sizeScale: number): TextRun[] {
   const runs: TextRun[] = [];
-  // Regex to match **bold**, *italic*, _italic_ (non-greedy, no nesting)
-  const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_)/g;
+  // Match **bold**, *italic*, _italic_, [link text](url)
+  const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_|\[([^\]]+)\]\(([^)]+)\))/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(text)) !== null) {
-    // Text before this match
     if (match.index > lastIndex) {
       runs.push({ text: text.slice(lastIndex, match.index), bold: false, italic: false, sizeScale });
     }
 
     if (match[2] !== undefined) {
-      // **bold**
       runs.push({ text: match[2], bold: true, italic: false, sizeScale });
     } else if (match[3] !== undefined) {
-      // *italic*
       runs.push({ text: match[3], bold: false, italic: true, sizeScale });
     } else if (match[4] !== undefined) {
-      // _italic_
       runs.push({ text: match[4], bold: false, italic: true, sizeScale });
+    } else if (match[5] !== undefined) {
+      runs.push({ text: match[5], bold: false, italic: false, sizeScale, link: match[6] });
     }
 
     lastIndex = match.index + match[0].length;
   }
 
-  // Remaining text after last match
   if (lastIndex < text.length) {
     runs.push({ text: text.slice(lastIndex), bold: false, italic: false, sizeScale });
   }
 
-  // If no formatting found at all, return the whole line as one plain run
   if (runs.length === 0) {
     runs.push({ text, bold: false, italic: false, sizeScale });
   }

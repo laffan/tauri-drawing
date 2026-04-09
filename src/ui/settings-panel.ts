@@ -146,6 +146,24 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
       spacingRow.appendChild(spacingInput);
       spacingRow.appendChild(spacingLabel);
       bgSection.appendChild(spacingRow);
+
+      // Opacity
+      bgSection.appendChild(h("div", { text: "Opacity", style: { fontSize: "12px", color: "#666", marginBottom: "4px", marginTop: "8px" } }));
+      const opacityRow = h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+      const opacityInput = h("input", {
+        attrs: { type: "range", min: "0", max: "100", step: "5" },
+        style: { flex: "1" },
+      }) as HTMLInputElement;
+      opacityInput.value = String(Math.round(state.gridOpacity * 100));
+      const opacityLabel = h("span", { text: `${Math.round(state.gridOpacity * 100)}%`, style: { fontSize: "12px", color: "#666", minWidth: "36px" } });
+      opacityInput.addEventListener("input", () => {
+        state.gridOpacity = parseInt(opacityInput.value, 10) / 100;
+        opacityLabel.textContent = `${opacityInput.value}%`;
+        state.notify("theme");
+      });
+      opacityRow.appendChild(opacityInput);
+      opacityRow.appendChild(opacityLabel);
+      bgSection.appendChild(opacityRow);
     }
     modal.appendChild(bgSection);
 

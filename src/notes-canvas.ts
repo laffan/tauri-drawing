@@ -150,6 +150,7 @@ export class NotesCanvas {
         theme: this.state.theme,
         backgroundPattern: this.state.backgroundPattern,
         gridSpacing: this.state.gridSpacing,
+        gridOpacity: this.state.gridOpacity,
       });
       this._rafId = requestAnimationFrame(loop);
     };

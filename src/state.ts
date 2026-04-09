@@ -51,6 +51,7 @@ export class DrawingState extends EventTarget {
   themeId = "default";
   backgroundPattern: BackgroundPattern = "grid";
   gridSpacing = 25;
+  gridOpacity = 1;
 
   get theme(): CanvasTheme {
     const variant = getEffectiveVariant(this.appearanceMode);
@@ -495,6 +496,15 @@ export class DrawingState extends EventTarget {
         return { ...s, strokeColor: hex, backgroundColor: `rgba(${r}, ${g}, ${b}, 0.16)` };
       }
       return s;
+    });
+    this.recordHistory();
+    this.notify("shapes");
+  }
+
+  changeSelectedFontSize(newSize: number) {
+    this.shapes = this.shapes.map((s) => {
+      if (!this.selectedIds.has(s.id) || s.type !== "text") return s;
+      return { ...s, fontSize: newSize };
     });
     this.recordHistory();
     this.notify("shapes");
