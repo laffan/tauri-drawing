@@ -8,7 +8,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     style: { position: "absolute", display: "none", gap: "2px", zIndex: "200", pointerEvents: "auto" },
   });
 
-  let activePopup: "color" | "bg" | "size" | null = null;
+  let activePopup: "color" | "bg" | "size" | "align" | null = null;
   let popupEl: HTMLElement | null = null;
   let popupWrapper: HTMLElement | null = null;
 
@@ -83,7 +83,30 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     closePopup();
   });
 
-  function togglePopup(type: "color" | "bg" | "size", wrapper: HTMLElement, create: () => HTMLElement) {
+  function makeAlignMenu(state: DrawingState): HTMLElement {
+    const btnStyle: Partial<CSSStyleDeclaration> = {
+      width: "26px", height: "26px", border: "none", borderRadius: "4px",
+      background: "transparent", cursor: "pointer", fontSize: "13px",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "0",
+    };
+    const items: { icon: string; title: string; action: () => void }[] = [
+      { icon: "\u2b06", title: "Align top", action: () => state.alignSelected("top") },
+      { icon: "\u2b07", title: "Align bottom", action: () => state.alignSelected("bottom") },
+      { icon: "\u2b05", title: "Align left", action: () => state.alignSelected("left") },
+      { icon: "\u27a1", title: "Align right", action: () => state.alignSelected("right") },
+      { icon: "\u2195", title: "Distribute vertically", action: () => state.distributeSelected("vertical") },
+      { icon: "\u2194", title: "Distribute horizontally", action: () => state.distributeSelected("horizontal") },
+    ];
+    const panel = h("div", {
+      style: { position: "absolute", top: "-40px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "2px", padding: "4px 6px", background: "#fff", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: "300" },
+      children: items.map((it) => h("button", { text: it.icon, title: it.title, style: { ...btnStyle }, onClick: it.action })),
+    });
+    panel.addEventListener("pointerdown", (e) => e.stopPropagation());
+    return panel;
+  }
+
+  function togglePopup(type: "color" | "bg" | "size" | "align", wrapper: HTMLElement, create: () => HTMLElement) {
     if (activePopup === type) { closePopup(); return; }
     closePopup();
     popupEl = create();
@@ -128,7 +151,14 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
     const multiSelect = selected.length > 1;
 
-    if (multiSelect) container.appendChild(makeIconBtn("\ud83d\udcd0", "Align left", () => state.alignSelected("left")));
+    if (multiSelect) {
+      const wrapper = h("div", { style: { position: "relative" } });
+      wrapper.appendChild(makeIconBtn("\ud83d\udcd0", "Align / Distribute", () => {
+        togglePopup("align", wrapper, () => makeAlignMenu(state));
+      }));
+      container.appendChild(wrapper);
+      if (savedPopup === "align") togglePopup("align", wrapper, () => makeAlignMenu(state));
+    }
     if (hasText) container.appendChild(makeIconBtn("\ud83d\udccb", "Move to shelf", onMoveToShelf));
 
     if (hasImage && selected.length === 1) {

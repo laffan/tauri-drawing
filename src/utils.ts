@@ -331,6 +331,39 @@ export function alignShapes(
   });
 }
 
+export function distributeShapes(
+  shapes: Shape[],
+  axis: "horizontal" | "vertical",
+): Shape[] {
+  if (shapes.length < 3) return shapes;
+  const allBounds = shapes.map((s, i) => ({ i, b: getShapeBounds(s) }));
+  if (axis === "horizontal") {
+    allBounds.sort((a, b) => a.b.minX - b.b.minX);
+    const totalSpan = allBounds[allBounds.length - 1].b.maxX - allBounds[0].b.minX;
+    const totalWidths = allBounds.reduce((sum, a) => sum + (a.b.maxX - a.b.minX), 0);
+    const gap = (totalSpan - totalWidths) / (allBounds.length - 1);
+    let x = allBounds[0].b.minX;
+    const deltas = new Map<number, number>();
+    for (const item of allBounds) {
+      deltas.set(item.i, x - item.b.minX);
+      x += (item.b.maxX - item.b.minX) + gap;
+    }
+    return shapes.map((s, i) => shiftShape(s, deltas.get(i) || 0, 0));
+  } else {
+    allBounds.sort((a, b) => a.b.minY - b.b.minY);
+    const totalSpan = allBounds[allBounds.length - 1].b.maxY - allBounds[0].b.minY;
+    const totalHeights = allBounds.reduce((sum, a) => sum + (a.b.maxY - a.b.minY), 0);
+    const gap = (totalSpan - totalHeights) / (allBounds.length - 1);
+    let y = allBounds[0].b.minY;
+    const deltas = new Map<number, number>();
+    for (const item of allBounds) {
+      deltas.set(item.i, y - item.b.minY);
+      y += (item.b.maxY - item.b.minY) + gap;
+    }
+    return shapes.map((s, i) => shiftShape(s, 0, deltas.get(i) || 0));
+  }
+}
+
 function shiftShape(shape: Shape, dx: number, dy: number): Shape {
   switch (shape.type) {
     case "draw":
