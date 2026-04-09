@@ -4,16 +4,27 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 
 ## Features
 
-**Text & Images**
-- Text with inline editing, word wrapping, and basic markdown rendering (`# headings`, `**bold**`, `*italic*`)
-- Double-click anywhere to create new text (default width 350px); click outside or press Escape to confirm and select
-- Text and background color pickers in the selection toolbar
-- Drag-and-drop images (png, jpg, webp) and text files (txt, md) onto the canvas, or paste from clipboard
+**Text**
+- Double-click anywhere to create new text; click outside or press Escape to confirm
+- Inline editing with word wrapping at a default 350px width
+- Markdown rendering: `# headings`, `**bold**`, `*italic*`, `[links](url)`
+- Headings render in the theme's accent color; links are underlined and Cmd+click opens them
+- Text and background color pickers, font size slider in the selection toolbar
+- Auto-fit bounding box shrinks to content width; manual resize is preserved
+- 10 bundled fonts: Inter (default), Source Sans Pro, Source Serif Pro, Libre Franklin, Libre Baskerville, Karla, Lora, Helvetica, EB Garamond, Fira Code
+
+**Images**
+- Drag-and-drop images (png, jpg, webp) and text files (txt, md) onto the canvas
+- Paste images from clipboard
+- Aspect-ratio-locked resizing
+- Non-destructive crop: ✂️ button enters crop mode with red handles, drag to pan the crop window, click outside to confirm
+- Auto-selected immediately after drop
 
 **Organization**
-- Drag Areas: dashed container regions that group shapes. Draw one around existing shapes or drag shapes into it.
+- Drag Areas (🧺): dashed container regions that group shapes
 - Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup
-- Shelf Panel: right-side panel mirroring the canvas hierarchy with search, #tag filtering, pinning, and drag-to-restore
+- Alignment & distribution: top/bottom/left/right align + horizontal/vertical distribute
+- Shelf Panel: right-side panel with search, #tag filtering, pinning, and drag-to-restore
 
 **Brainstorm Mode**
 - Click anywhere to open a persistent text input
@@ -22,12 +33,15 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 
 **Canvas**
 - Infinite pan (hold Space or middle-click) and zoom (scroll wheel)
-- Select, move, and resize shapes with handles
-- Settings panel with font size control and keyboard shortcuts reference
-- Alt/Option+drag to duplicate
-- Undo/redo (Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z)
+- Background patterns: grid, dot grid, or blank with spacing and opacity controls
+- 16 themes from thememirror.net (8 light, 8 dark) with light/dark/auto appearance
+- Undo/redo (Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z) with 100-entry snapshot history
 - Canvas bookmarks: save and restore named camera positions
-- Cross-platform paste and drag-drop (macOS, iOS, Windows, Linux)
+
+**File I/O**
+- Save/open `.note` files (zip archives containing JSON + images folder)
+- Native macOS save/open dialogs via Tauri plugins
+- Cmd+click links open in browser via `tauri-plugin-opener` (supports https, mailto, tel, obsidian://, zotero://)
 
 ## Keyboard Shortcuts
 
@@ -45,6 +59,7 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 | Cmd/Ctrl+Shift+G | Ungroup |
 | Alt/Option+drag | Duplicate selection |
 | Double-click | New text |
+| Cmd/Ctrl+click | Open link |
 
 ## Getting Started
 

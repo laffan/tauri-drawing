@@ -11,28 +11,50 @@ src/
   main.ts                 Entry point — mounts NotesCanvas
   notes-canvas.ts         Public API class — orchestrates everything
   state.ts                DrawingState class — all app state + mutations
+  state-helpers.ts        Pure helper functions (find, resize, crop, link hit-test)
   renderer.ts             Canvas 2D draw functions (pure, no side effects)
   input-handler.ts        Wires native DOM events to state methods
   external-content.ts     Clipboard/drag-drop/file helpers
-  markdown.ts             Lightweight markdown parser for canvas text
+  file-io.ts              Save/open .note files (JSZip + Tauri fs/dialog)
+  markdown.ts             Markdown parser: headings, bold, italic, links
+  themes.ts               16 color themes + appearance mode (light/dark/auto)
   types.ts                Shape types, constants, color palettes
-  utils.ts                Geometry, hit testing, text measurement
+  undo-manager.ts         Snapshot-based undo/redo (100 entries)
+  utils.ts                Geometry, hit testing, text measurement, alignment
   ui/
     dom-helpers.ts         h() element builder, setStyles(), clearChildren()
     toolbar.ts             Bottom floating tool bar
-    selection-toolbar.ts   Context toolbar above selected shapes
+    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop)
     bookmarks-panel.ts     Camera bookmark dropdown
-    shelf-panel.ts         Right-side hierarchical shape browser
+    file-panel.ts          Save/open buttons (native dialogs)
+    settings-panel.ts      Settings modal (appearance, theme, font, background, shortcuts)
+    shelf-panel.ts         Right-side hierarchical shape browser (themed)
     text-editor.ts         Inline textarea overlay for text editing
     brainstorm-input.ts    Persistent input for brainstorm mode
     status-bar.ts          Zoom/shape count display
 ```
 
+### Tauri plugins
+
+| Plugin | Purpose |
+|--------|---------|
+| `tauri-plugin-dialog` | Native save/open file dialogs |
+| `tauri-plugin-fs` | Read/write .note files to disk |
+| `tauri-plugin-opener` | Open URLs in browser / inter-app links (obsidian://, etc.) |
+| `tauri-plugin-log` | Debug logging (dev only) |
+
+### Key dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `jszip` | Create/read .note zip archives |
+| Bundled woff2 fonts | 9 Google Fonts in `public/fonts/` for offline use |
+
 ## Rules
 
 ### No file larger than 700 lines
 
-Every source file (`.ts`, `.rs`, `.css`) must stay under 700 lines. If a file grows beyond this, split it into focused sub-modules. This keeps files navigable, reduces merge conflicts, and forces clean separation of concerns.
+Every source file (`.ts`, `.rs`, `.css`) must stay under 700 lines. If a file grows beyond this, split it into focused sub-modules (e.g. `state-helpers.ts` was split from `state.ts`). This keeps files navigable, reduces merge conflicts, and forces clean separation of concerns.
 
 ### No framework dependencies
 
@@ -54,6 +76,10 @@ Never mutate shapes, selection, camera, or tool state from UI components or inpu
 
 `DrawingState.notify()` uses `queueMicrotask` to batch multiple notifications within the same synchronous call stack into a single `"change"` event. This means you can safely call `notify("shapes")` and `notify("selectedIds")` in the same method without triggering redundant UI rebuilds.
 
+### Undo/redo
+
+`UndoManager` in `undo-manager.ts` stores up to 100 shape snapshots. Call `state.recordHistory()` after each completed user action (not during continuous interactions like dragging). For drag/resize, record once on pointer-up.
+
 ## Patterns
 
 ### Adding a new shape type
@@ -63,13 +89,13 @@ Never mutate shapes, selection, camera, or tool state from UI components or inpu
 3. Add hit testing to `hitTestShape()` in `utils.ts`
 4. Add a draw function in `renderer.ts`, call it from the main `render()` loop
 5. Add creation logic in `state.ts` (tool handler or method)
-6. Add resize handling in `applyResize()` in `state.ts` if applicable
+6. Add resize handling in `applyResize()` in `state-helpers.ts` if applicable
 
 ### Adding a new tool
 
 1. Add the tool name to the `Tool` union in `types.ts`
 2. Add pointer handling in `DrawingState.handlePointerDown/Move/Up` in `state.ts`
-3. Add the tool button in `ui/toolbar.ts` (in the `TOOLS` or `EXTRA_TOOLS` array)
+3. Add the tool button in `ui/toolbar.ts` (in the `TOOLS` array)
 4. Add the keyboard shortcut in `input-handler.ts`
 5. Add a cursor style in the `cursorMap` in `notes-canvas.ts`
 
@@ -80,6 +106,16 @@ Never mutate shapes, selection, camera, or tool state from UI components or inpu
 3. Subscribe to state changes: `state.addEventListener("change", rebuild)`
 4. Use closure variables for local UI state (open/closed, search term, etc.)
 5. Mount it in `notes-canvas.ts` constructor: `container.appendChild(createMyPanel(this.state))`
+
+### Adding a theme
+
+Add an entry to `THEMES` in `themes.ts` using the `light()` or `dark()` helper:
+
+```typescript
+"my-theme": light("My Theme", "#bg", "#fg", "#headingColor", "#selection", "#accent"),
+```
+
+Each theme provides: `canvasBackground`, `foreground`, `headingColor`, `selection`, `accent`, `gridColor`, `uiBackground`, `uiBorder`.
 
 ### DOM building with h()
 
@@ -103,12 +139,28 @@ const row = h("div", {
 
 ### Text measurement
 
-Always use `measureTextWidth()` from `utils.ts` (which uses an offscreen canvas) instead of character-count estimates. The old `fontSize * 0.6` approximation causes visible misalignment between rendered text and bounding boxes.
+Always use `measureTextWidth()` from `utils.ts` (which uses an offscreen canvas) instead of character-count estimates. Pass the current `fontFamily` for accurate measurement:
 
 ```typescript
 import { measureTextWidth } from "./utils";
-const width = measureTextWidth("Hello world", 18); // accurate pixel width
+const width = measureTextWidth("Hello world", 18, "Inter"); // accurate pixel width
 ```
+
+### Opening external URLs
+
+Use the `openExternalUrl()` helper from `state-helpers.ts`. It tries `@tauri-apps/plugin-opener` first (desktop), falling back to `window.open()` (web):
+
+```typescript
+import { openExternalUrl } from "./state-helpers";
+await openExternalUrl("https://example.com");
+await openExternalUrl("obsidian://open?vault=MyVault"); // inter-app links
+```
+
+## Tauri configuration
+
+- **`dragDropEnabled: false`** in `tauri.conf.json` — disables Tauri's native drag handler so HTML5 drag events work
+- **Capabilities** in `src-tauri/capabilities/default.json` — permissions for fs, dialog, opener plugins
+- **CSP** allows `data:` and `blob:` URIs for inline images
 
 ## Build & Dev
 
