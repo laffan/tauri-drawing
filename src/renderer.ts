@@ -58,7 +58,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     if (shape.id === editingShapeId) continue;
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
     else if (shape.type === "text") drawTextShape(ctx, shape, theme, state.fontFamily);
-    else if (shape.type === "image") drawImageShape(ctx, shape, imageCache);
+    else if (shape.type === "image") drawImageShape(ctx, shape, imageCache, shape.id === state.croppingImageId);
   }
 
   if (creatingDragArea) {
@@ -225,10 +225,20 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: C
   ctx.restore();
 }
 
-function drawImageShape(ctx: CanvasRenderingContext2D, shape: ImageShape, imageCache: Map<string, HTMLImageElement>) {
+function drawImageShape(ctx: CanvasRenderingContext2D, shape: ImageShape, imageCache: Map<string, HTMLImageElement>, isCropping?: boolean) {
   const img = imageCache.get(shape.id);
   if (img && img.complete) {
     const c = shape.crop || { x: 0, y: 0, w: 1, h: 1 };
+    if (isCropping) {
+      // Show the full image at 50% opacity behind the crop
+      const fullW = shape.width / c.w, fullH = shape.height / c.h;
+      const fullX = shape.position.x - c.x * fullW, fullY = shape.position.y - c.y * fullH;
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.drawImage(img, fullX, fullY, fullW, fullH);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
     const sx = c.x * img.naturalWidth, sy = c.y * img.naturalHeight;
     const sw = c.w * img.naturalWidth, sh = c.h * img.naturalHeight;
     ctx.drawImage(img, sx, sy, sw, sh, shape.position.x, shape.position.y, shape.width, shape.height);

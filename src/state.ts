@@ -352,6 +352,25 @@ export class DrawingState extends EventTarget {
       const dy = canvasPt.y - this._dragStart.y;
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
         this._dragStart = canvasPt;
+
+        // In crop mode: drag shifts the crop window within the image
+        if (this.croppingImageId && this.selectedIds.has(this.croppingImageId)) {
+          this.shapes = this.shapes.map((s) => {
+            if (s.id !== this.croppingImageId || s.type !== "image") return s;
+            const crop = s.crop || { x: 0, y: 0, w: 1, h: 1 };
+            // Convert canvas-space dx/dy to crop-fraction deltas
+            const fracDx = -(dx / s.width) * crop.w;
+            const fracDy = -(dy / s.height) * crop.h;
+            let nx = crop.x + fracDx, ny = crop.y + fracDy;
+            // Clamp so crop stays within 0..1-w and 0..1-h
+            nx = Math.max(0, Math.min(1 - crop.w, nx));
+            ny = Math.max(0, Math.min(1 - crop.h, ny));
+            return { ...s, crop: { ...crop, x: nx, y: ny } };
+          });
+          this.notify("shapes");
+          return;
+        }
+
         const selectedDragAreaIds = new Set<string>();
         for (const s of this.shapes) {
           if (this.selectedIds.has(s.id) && s.type === "drag-area") selectedDragAreaIds.add(s.id);
