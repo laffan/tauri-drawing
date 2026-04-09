@@ -1,7 +1,7 @@
 import type { DrawingState } from "./state";
 import {
   extractDroppedText, extractTextFromDataTransfer,
-  fileToDataUrl, getImageDimensions, isTextFile,
+  fileToDataUrl, getImageDimensions, isImageFile, isTextFile,
 } from "./external-content";
 import { screenToCanvas } from "./utils";
 
@@ -22,6 +22,10 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
   on(canvas, "dblclick", (e) => state.handleDoubleClick(e));
   on(canvas, "wheel", (e) => state.handleWheel(e), { passive: false });
 
+  // Space-to-pan state
+  let spaceDown = false;
+  let toolBeforeSpace: string | null = null;
+
   // Keyboard shortcuts
   on(window as unknown as HTMLElement, "keydown", ((e: KeyboardEvent) => {
     if (state.editingText) {
@@ -34,11 +38,19 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
     }
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+    // Space-to-pan: hold space to temporarily pan
+    if (e.key === " " && !e.repeat) {
+      e.preventDefault();
+      spaceDown = true;
+      toolBeforeSpace = state.tool;
+      state.isPanning = true;
+      state.notify("tool"); // triggers cursor update
+      return;
+    }
+
     switch (e.key) {
       case "1": state.tool = "select"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
-      case "2": state.tool = "hand"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
       case "t": case "T": state.tool = "text"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
-      case "e": case "E": state.tool = "erase"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); break;
       case "a": case "A":
         if (!e.ctrlKey && !e.metaKey) { state.tool = "drag-area"; state.brainstormMode = false; state.notify("tool"); state.notify("brainstormMode"); }
         break;
@@ -73,6 +85,18 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
     }
   }) as unknown as (e: HTMLElementEventMap["keydown"]) => void);
 
+  on(window as unknown as HTMLElement, "keyup", ((e: KeyboardEvent) => {
+    if (e.key === " " && spaceDown) {
+      spaceDown = false;
+      state.isPanning = false;
+      if (toolBeforeSpace) {
+        state.tool = toolBeforeSpace as import("./types").Tool;
+        toolBeforeSpace = null;
+      }
+      state.notify("tool");
+    }
+  }) as unknown as (e: HTMLElementEventMap["keyup"]) => void);
+
   // Paste
   on(document as unknown as HTMLElement, "paste", (async (e: ClipboardEvent) => {
     if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
@@ -96,13 +120,15 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
     if (text && text.trim()) state.addTextShapeAtCenter(text);
   }) as unknown as (e: HTMLElementEventMap["paste"]) => void);
 
-  // Drag/drop
+  // Drag/drop (skip shelf-item drags — those are handled by notes-canvas.ts)
   on(document as unknown as HTMLElement, "dragover", ((e: DragEvent) => {
+    if (e.dataTransfer?.types.includes("application/x-shelf-index")) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
   }) as unknown as (e: HTMLElementEventMap["dragover"]) => void, { capture: true });
 
   on(document as unknown as HTMLElement, "drop", (async (e: DragEvent) => {
+    if (e.dataTransfer?.types.includes("application/x-shelf-index")) return;
     e.preventDefault();
     if (!e.dataTransfer) return;
     const rect = canvas.getBoundingClientRect();
@@ -111,7 +137,7 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
     const files = Array.from(e.dataTransfer.files);
     let handledFile = false;
     for (const file of files) {
-      if (file.type.startsWith("image/")) {
+      if (isImageFile(file)) {
         const dataUrl = await fileToDataUrl(file);
         const dims = await getImageDimensions(dataUrl);
         state.addImageShape(dataUrl, file.name, dims.width, dims.height, dropPos);

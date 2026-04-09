@@ -10,6 +10,7 @@ import { createShelfPanel } from "./ui/shelf-panel";
 import { createTextEditor } from "./ui/text-editor";
 import { createBrainstormInput } from "./ui/brainstorm-input";
 import { createStatusBar } from "./ui/status-bar";
+import { createSettingsPanel } from "./ui/settings-panel";
 
 export class NotesCanvas {
   readonly container: HTMLElement;
@@ -55,11 +56,11 @@ export class NotesCanvas {
 
     // Update cursor on tool change
     const cursorMap: Record<string, string> = {
-      select: "default", hand: "grab",
-      text: "text", erase: "pointer", "drag-area": "crosshair", brainstorm: "text",
+      select: "default", text: "text", "drag-area": "crosshair", brainstorm: "text",
     };
     this.state.addEventListener("change", () => {
-      this._canvas.style.cursor = this.state.brainstormMode ? "text" : (cursorMap[this.state.tool] || "default");
+      if (this.state.isPanning) this._canvas.style.cursor = "grab";
+      else this._canvas.style.cursor = this.state.brainstormMode ? "text" : (cursorMap[this.state.tool] || "default");
     });
 
     // Image cache management
@@ -69,7 +70,7 @@ export class NotesCanvas {
     this._canvas.addEventListener("dragover", (e) => {
       if (e.dataTransfer?.types.includes("application/x-shelf-index")) {
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
+        e.dataTransfer!.dropEffect = "move";
       }
     });
     this._canvas.addEventListener("drop", (e) => {
@@ -106,6 +107,7 @@ export class NotesCanvas {
     container.appendChild(createBrainstormInput(this.state));
     container.appendChild(createToolbar(this.state));
     container.appendChild(createBookmarksPanel(this.state));
+    container.appendChild(createSettingsPanel(this.state));
     this._shelfPanel = createShelfPanel(this.state, shelfCallbacks);
     container.appendChild(this._shelfPanel);
     container.appendChild(createStatusBar(this.state));

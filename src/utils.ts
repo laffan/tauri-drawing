@@ -1,5 +1,6 @@
 import { LINE_HEIGHT_RATIO, FONT_FAMILY, COLOR_PALETTE } from "./types";
 import type { Bounds, Camera, DragAreaShape, Point, Shape } from "./types";
+import { parseLine } from "./markdown";
 
 let nextId = 0;
 export function generateId(): string {
@@ -82,31 +83,47 @@ export function getTextBounds(
   fontSize: number,
   constraintWidth?: number,
 ): Bounds {
-  const lineHeight = fontSize * LINE_HEIGHT_RATIO;
-  // Extra padding accounts for font descenders (g, p, y, etc.)
+  const baseLineHeight = fontSize * LINE_HEIGHT_RATIO;
   const descenderPad = fontSize * 0.25;
 
   if (constraintWidth && constraintWidth > 0) {
-    // Wrap text to constraint width and measure actual wrapped lines
-    const wrapped = wrapTextMeasured(text, constraintWidth, fontSize);
-    const height = wrapped.length * lineHeight + descenderPad;
+    // Measure each line accounting for heading scales and wrapping
+    let height = 0;
+    for (const rawLine of text.split("\n")) {
+      const parsed = parseLine(rawLine);
+      const lineFontSize = fontSize * parsed.sizeScale;
+      const lineH = lineFontSize * LINE_HEIGHT_RATIO;
+      const fullText = parsed.runs.map((r) => r.text).join("");
+      if (measureTextWidth(fullText, lineFontSize) > constraintWidth && fullText.includes(" ")) {
+        const wrapped = wrapTextMeasured(fullText, constraintWidth, lineFontSize);
+        height += wrapped.length * lineH;
+      } else {
+        height += lineH;
+      }
+    }
     return {
       minX: position.x,
       minY: position.y,
       maxX: position.x + constraintWidth,
-      maxY: position.y + Math.max(height, lineHeight + descenderPad),
+      maxY: position.y + Math.max(height + descenderPad, baseLineHeight + descenderPad),
     };
   }
 
-  // Auto-size: measure actual rendered width using canvas
-  const lines = text.split("\n");
-  const maxLineWidth = Math.max(...lines.map((l) => measureTextWidth(l, fontSize)));
-  const height = lines.length * lineHeight + descenderPad;
+  // Auto-size: measure each line accounting for heading scales
+  let height = 0;
+  let maxWidth = 0;
+  for (const rawLine of text.split("\n")) {
+    const parsed = parseLine(rawLine);
+    const lineFontSize = fontSize * parsed.sizeScale;
+    height += lineFontSize * LINE_HEIGHT_RATIO;
+    const lineText = parsed.runs.map((r) => r.text).join("");
+    maxWidth = Math.max(maxWidth, measureTextWidth(lineText, lineFontSize));
+  }
   return {
     minX: position.x,
     minY: position.y,
-    maxX: position.x + Math.max(maxLineWidth, 20),
-    maxY: position.y + Math.max(height, lineHeight + descenderPad),
+    maxX: position.x + Math.max(maxWidth, 20),
+    maxY: position.y + Math.max(height + descenderPad, baseLineHeight + descenderPad),
   };
 }
 

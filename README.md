@@ -6,9 +6,9 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 
 **Text & Images**
 - Text with inline editing, word wrapping, and basic markdown rendering (`# headings`, `**bold**`, `*italic*`)
-- Double-click anywhere to create new text; click outside or press Escape to confirm and select
+- Double-click anywhere to create new text (default width 350px); click outside or press Escape to confirm and select
 - Text and background color pickers in the selection toolbar
-- Drag-and-drop or paste images directly onto the canvas
+- Drag-and-drop images (png, jpg, webp) and text files (txt, md) onto the canvas, or paste from clipboard
 
 **Organization**
 - Drag Areas: dashed container regions that group shapes. Draw one around existing shapes or drag shapes into it.
@@ -21,8 +21,9 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - Input stays open for rapid sequential entry
 
 **Canvas**
-- Infinite pan (middle-click or Hand tool) and zoom (scroll wheel)
+- Infinite pan (hold Space or middle-click) and zoom (scroll wheel)
 - Select, move, and resize shapes with handles
+- Settings panel with font size control and keyboard shortcuts reference
 - Alt/Option+drag to duplicate
 - Undo/redo (Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z)
 - Canvas bookmarks: save and restore named camera positions
@@ -33,17 +34,17 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 | Key | Action |
 |-----|--------|
 | 1 | Select tool |
-| 2 | Hand (pan) tool |
 | T | Text tool (default) |
-| E | Erase tool |
 | A | Drag Area tool |
 | B | Toggle Brainstorm mode |
+| Space (hold) | Pan canvas |
 | Delete/Backspace | Delete selected |
 | Cmd/Ctrl+Z | Undo |
 | Cmd/Ctrl+Shift+Z | Redo |
 | Cmd/Ctrl+G | Group selected |
 | Cmd/Ctrl+Shift+G | Ungroup |
 | Alt/Option+drag | Duplicate selection |
+| Double-click | New text |
 
 ## Getting Started
 

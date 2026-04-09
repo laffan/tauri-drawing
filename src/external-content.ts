@@ -87,6 +87,12 @@ export function normalizeTextContent(value: string, type: string): string {
   return value;
 }
 
+export function isImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  const name = (file.name || "").toLowerCase();
+  return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".gif") || name.endsWith(".svg");
+}
+
 export function isTextFile(file: File): boolean {
   if (file.type === "text/plain") return true;
   const name = (file.name || "").toLowerCase();

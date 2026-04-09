@@ -127,7 +127,19 @@ export function createShelfPanel(
         row.addEventListener("dragstart", (e) => {
           if (e.dataTransfer) {
             e.dataTransfer.setData("application/x-shelf-index", String(i));
-            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.effectAllowed = "copyMove";
+            // Create drag ghost
+            const ghost = document.createElement("div");
+            Object.assign(ghost.style, {
+              padding: "6px 12px", background: "rgba(66,133,244,0.9)", color: "#fff",
+              borderRadius: "6px", fontSize: "13px", maxWidth: "200px",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              position: "absolute", top: "-1000px",
+            });
+            ghost.textContent = text.substring(0, 50);
+            document.body.appendChild(ghost);
+            e.dataTransfer.setDragImage(ghost, 10, 10);
+            setTimeout(() => ghost.remove(), 0);
           }
         });
         row.appendChild(h("span", { text, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }));

@@ -39,6 +39,8 @@ export class DrawingState extends EventTarget {
   creatingDragArea: { start: Point; end: Point } | null = null;
 
   canvasEl: HTMLCanvasElement | null = null;
+  /** When true, left-click pans (set by space bar hold). */
+  isPanning = false;
 
   // Undo/redo
   private _undo = new UndoManager();
@@ -71,10 +73,9 @@ export class DrawingState extends EventTarget {
   get canRedo() { return this._undo.canRedo; }
 
   // Private interaction state (replaces useRef)
-  private _isPanning = false;
+  private _isPanningActive = false;
   private _panStart: Point = { x: 0, y: 0 };
   private _cameraStart: Camera = { x: 0, y: 0, zoom: 1 };
-  private _isDrawing = false;
   private _selectStart: Point | null = null;
   private _isDragging = false;
   private _dragStart: Point = { x: 0, y: 0 };
@@ -116,6 +117,7 @@ export class DrawingState extends EventTarget {
       this.shapes = [...this.shapes, {
         id: shapeId, type: "text", position: editing.position,
         text: trimmed, fontSize: editing.fontSize, color: editing.color,
+        width: editing.width,
       } as TextShape];
     }
     this.selectedIds = new Set([shapeId]);
@@ -167,7 +169,7 @@ export class DrawingState extends EventTarget {
     const canvasPt = screenToCanvas(screenPt, this.camera);
 
     if (e.button === 1) {
-      this._isPanning = true;
+      this._isPanningActive = true;
       this._panStart = { x: e.clientX, y: e.clientY };
       this._cameraStart = { ...this.camera };
       canvas.setPointerCapture(e.pointerId);
@@ -185,10 +187,11 @@ export class DrawingState extends EventTarget {
     const willEditText = this.tool === "text" && !this.brainstormMode;
     if (!willEditText) canvas.setPointerCapture(e.pointerId);
 
-    if (this.tool === "hand") {
-      this._isPanning = true;
+    if (this.isPanning) {
+      this._isPanningActive = true;
       this._panStart = { x: e.clientX, y: e.clientY };
       this._cameraStart = { ...this.camera };
+      canvas.setPointerCapture(e.pointerId);
       return;
     }
 
@@ -198,7 +201,7 @@ export class DrawingState extends EventTarget {
       if (hit && hit.type === "text") {
         this.startEditingExistingText(hit);
       } else {
-        this.editingText = { shapeId: null, position: canvasPt, text: "", fontSize: this.fontSize, color: this.color };
+        this.editingText = { shapeId: null, position: canvasPt, text: "", fontSize: this.fontSize, color: this.color, width: 350 };
         this.notify("editingText");
       }
     } else if (this.brainstormMode) {
@@ -262,9 +265,6 @@ export class DrawingState extends EventTarget {
         this.selectionBox = { start: canvasPt, end: canvasPt };
         this.notify("selectionBox");
       }
-    } else if (this.tool === "erase") {
-      this._isDrawing = true;
-      this._eraseAtPoint(canvasPt);
     } else if (this.tool === "drag-area") {
       this.creatingDragArea = { start: canvasPt, end: canvasPt };
       this.notify("creatingDragArea");
@@ -280,7 +280,7 @@ export class DrawingState extends EventTarget {
     if (hit && hit.type === "text") {
       this.startEditingExistingText(hit);
     } else {
-      this.editingText = { shapeId: null, position: canvasPt, text: "", fontSize: this.fontSize, color: this.color };
+      this.editingText = { shapeId: null, position: canvasPt, text: "", fontSize: this.fontSize, color: this.color, width: 350 };
       this.notify("editingText");
     }
   }
@@ -291,7 +291,7 @@ export class DrawingState extends EventTarget {
     const screenPt: Point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const canvasPt = screenToCanvas(screenPt, this.camera);
 
-    if (this._isPanning) {
+    if (this._isPanningActive) {
       const dx = e.clientX - this._panStart.x;
       const dy = e.clientY - this._panStart.y;
       this.camera = { x: this._cameraStart.x + dx, y: this._cameraStart.y + dy, zoom: this._cameraStart.zoom };
@@ -332,8 +332,6 @@ export class DrawingState extends EventTarget {
     if (this.tool === "select" && this._selectStart) {
       this.selectionBox = { start: this._selectStart, end: canvasPt };
       this.notify("selectionBox");
-    } else if (this.tool === "erase" && this._isDrawing) {
-      this._eraseAtPoint(canvasPt);
     } else if (this.tool === "drag-area" && this.creatingDragArea) {
       this.creatingDragArea = { ...this.creatingDragArea, end: canvasPt };
       this.notify("creatingDragArea");
@@ -341,7 +339,7 @@ export class DrawingState extends EventTarget {
   }
 
   handlePointerUp(e: PointerEvent) {
-    if (this._isPanning) { this._isPanning = false; return; }
+    if (this._isPanningActive) { this._isPanningActive = false; return; }
 
     if (this._isDragging) {
       this._isDragging = false;
@@ -411,10 +409,6 @@ export class DrawingState extends EventTarget {
       this.notify("shapes");
       this.notify("creatingDragArea");
     }
-    if (this._isDrawing && this.tool === "erase") {
-      this.recordHistory();
-    }
-    this._isDrawing = false;
   }
 
   handleWheel(e: WheelEvent) {
@@ -435,11 +429,6 @@ export class DrawingState extends EventTarget {
   }
 
   // === Shape operations ===
-  private _eraseAtPoint(pt: Point) {
-    this.shapes = this.shapes.filter((s) => !hitTestShape(pt, s));
-    this.notify("shapes");
-  }
-
   deleteSelected() {
     if (this.selectedIds.size === 0) return;
     const deletingIds = new Set(this.selectedIds);
