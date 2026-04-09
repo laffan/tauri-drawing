@@ -15,6 +15,7 @@ import {
   findShapeAtPoint, hitTestLink, normalizeBox, moveShape,
   applyResize, applyCropResize, openExternalUrl,
 } from "./state-helpers";
+import { parseLine } from "./markdown";
 
 export interface EditingText {
   shapeId: string | null;
@@ -681,10 +682,15 @@ export class DrawingState extends EventTarget {
   }
 }
 
-/** Measure widest line and return fitted width, capped at constraint. Short text gets a tight box. */
+/** Measure widest rendered line (accounting for heading scale) and return fitted width. */
 function autoFitWidth(text: string, fontSize: number, constraintWidth?: number): number {
   const cw = constraintWidth || 350;
-  const maxW = Math.max(...text.split("\n").map((l) => measureTextWidth(l, fontSize)));
+  let maxW = 0;
+  for (const line of text.split("\n")) {
+    const parsed = parseLine(line);
+    const displayText = parsed.runs.map((r) => r.text).join("");
+    maxW = Math.max(maxW, measureTextWidth(displayText, fontSize * parsed.sizeScale));
+  }
   return maxW < cw ? Math.max(30, maxW + 8) : cw;
 }
 
