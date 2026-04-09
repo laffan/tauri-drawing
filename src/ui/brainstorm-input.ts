@@ -63,6 +63,7 @@ export function createBrainstormInput(state: DrawingState): HTMLElement {
   }
 
   function hide() {
+    if (!visible) return;
     container.style.display = "none";
     visible = false;
     input.value = "";

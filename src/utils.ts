@@ -23,12 +23,12 @@ export function canvasToScreen(canvasPoint: Point, camera: Camera): Point {
 
 // === Bounds ===
 
-export function getShapeBounds(shape: Shape): Bounds {
+export function getShapeBounds(shape: Shape, fontFamily?: string): Bounds {
   switch (shape.type) {
     case "draw":
       return getPointsBounds(shape.points);
     case "text":
-      return getTextBounds(shape.position, shape.text, shape.fontSize, shape.width);
+      return getTextBounds(shape.position, shape.text, shape.fontSize, shape.width, fontFamily);
     case "image":
       return {
         minX: shape.position.x,
@@ -86,7 +86,7 @@ export function getTextBounds(
 ): Bounds {
   const baseLineHeight = fontSize * LINE_HEIGHT_RATIO;
   const descenderPad = fontSize * 0.25;
-  const ff = fontFamily ? fontFamily + ", " + FONT_FAMILY : FONT_FAMILY;
+  const ff = (fontFamily || "Inter") + ", " + FONT_FAMILY;
 
   const measure = (t: string, fs: number): number => {
     const ctx = getMeasureCtx();

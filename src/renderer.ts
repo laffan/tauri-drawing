@@ -177,7 +177,7 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: C
   // Draw background if set
   if (shape.backgroundColor) {
     const hex = COLOR_PALETTE[shape.backgroundColor] || shape.backgroundColor;
-    const bounds = getShapeBounds(shape);
+    const bounds = getShapeBounds(shape, fontFamily);
     const pad = 4;
     ctx.save();
     ctx.fillStyle = hex;
