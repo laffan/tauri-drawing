@@ -263,10 +263,10 @@ export class DrawingState extends EventTarget {
 
       const hitShape = findShapeAtPoint(canvasPt, this.shapes);
 
-      // Cmd+click on a link: open in browser
+      // Cmd+click on a link: open in browser/app
       if (hitShape && hitShape.type === "text" && (e.metaKey || e.ctrlKey)) {
         const link = hitTestLink(canvasPt, hitShape);
-        if (link) { window.open(link, "_blank"); return; }
+        if (link) { openExternalUrl(link); return; }
       }
 
       if (hitShape) {
@@ -659,5 +659,15 @@ export class DrawingState extends EventTarget {
     this.notify("shapes");
     this.notify("selectedIds");
     return texts;
+  }
+}
+
+/** Open a URL using Tauri's opener plugin (desktop) or window.open (web fallback). */
+async function openExternalUrl(url: string) {
+  try {
+    const opener = await import("@tauri-apps/plugin-opener");
+    await opener.openUrl(url);
+  } catch {
+    window.open(url, "_blank");
   }
 }

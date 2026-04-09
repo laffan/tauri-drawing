@@ -12,6 +12,17 @@
     "dialog:allow-open",
     "fs:default",
     "fs:allow-read-file",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://*" },
+        { "url": "http://*" },
+        { "url": "mailto:*" },
+        { "url": "tel:*" },
+        { "url": "obsidian://*" },
+        { "url": "zotero://*" }
+      ]
+    }
   ]
 }
