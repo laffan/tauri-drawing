@@ -9,14 +9,14 @@ export interface InputOptions {
   onShelfDrop?: (index: number, x: number, y: number) => void;
 }
 
-export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, opts?: InputOptions): () => void {
+export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, inputOpts?: InputOptions): () => void {
   const cleanups: (() => void)[] = [];
 
   function on<K extends keyof HTMLElementEventMap>(
-    el: EventTarget, type: K, handler: (e: HTMLElementEventMap[K]) => void, opts?: AddEventListenerOptions,
+    el: EventTarget, type: K, handler: (e: HTMLElementEventMap[K]) => void, listenerOpts?: AddEventListenerOptions,
   ) {
-    el.addEventListener(type, handler as EventListener, opts);
-    cleanups.push(() => el.removeEventListener(type, handler as EventListener, opts));
+    el.addEventListener(type, handler as EventListener, listenerOpts);
+    cleanups.push(() => el.removeEventListener(type, handler as EventListener, listenerOpts));
   }
 
   // Canvas pointer events
@@ -124,16 +124,18 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, 
     if (text && text.trim()) state.addTextShapeAtCenter(text);
   }) as unknown as (e: HTMLElementEventMap["paste"]) => void);
 
-  // Drag/drop — single unified handler for shelf items, files, and text
-  on(document as unknown as HTMLElement, "dragover", ((e: DragEvent) => {
+  // Drag/drop — capture phase so preventDefault() runs before the browser
+  // rejects the drop target. Handles shelf items, file drops, and text drops.
+  on(window as unknown as HTMLElement, "dragover", ((e: DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = e.dataTransfer.types.includes("application/x-shelf-index") ? "move" : "copy";
     }
-  }) as unknown as (e: HTMLElementEventMap["dragover"]) => void);
+  }) as unknown as (e: HTMLElementEventMap["dragover"]) => void, { capture: true });
 
-  on(document as unknown as HTMLElement, "drop", (async (e: DragEvent) => {
+  on(window as unknown as HTMLElement, "drop", (async (e: DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!e.dataTransfer) return;
     const rect = canvas.getBoundingClientRect();
     const dropPos = screenToCanvas({ x: e.clientX - rect.left, y: e.clientY - rect.top }, state.camera);
@@ -141,7 +143,7 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, 
     // Shelf item drag-to-restore
     const shelfIdx = e.dataTransfer.getData("application/x-shelf-index");
     if (shelfIdx !== "") {
-      opts?.onShelfDrop?.(parseInt(shelfIdx, 10), dropPos.x, dropPos.y);
+      inputOpts?.onShelfDrop?.(parseInt(shelfIdx, 10), dropPos.x, dropPos.y);
       return;
     }
 
@@ -164,7 +166,7 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, 
 
     const text = await extractDroppedText(e.dataTransfer);
     if (text && text.trim()) state.addTextShapeAtPosition(text, dropPos);
-  }) as unknown as (e: HTMLElementEventMap["drop"]) => void);
+  }) as unknown as (e: HTMLElementEventMap["drop"]) => void, { capture: true });
 
   return () => { for (const fn of cleanups) fn(); };
 }

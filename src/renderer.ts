@@ -49,7 +49,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     if (shape.type === "drag-area") continue;
     if (shape.id === editingShapeId) continue;
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
-    else if (shape.type === "text") drawTextShape(ctx, shape);
+    else if (shape.type === "text") drawTextShape(ctx, shape, theme);
     else if (shape.type === "image") drawImageShape(ctx, shape, imageCache);
   }
 
@@ -74,7 +74,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   if (selectedIds.size > 0) {
     for (const shape of shapes) {
-      if (selectedIds.has(shape.id)) drawSelectionHighlight(ctx, shape, camera.zoom);
+      if (selectedIds.has(shape.id)) drawSelectionHighlight(ctx, shape, camera.zoom, theme.accent);
     }
   }
 
@@ -137,7 +137,7 @@ export function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color
   ctx.stroke();
 }
 
-function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
+function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: CanvasTheme) {
   const baseFontSize = shape.fontSize;
 
   // Measure function using the render context for accurate width
@@ -154,6 +154,11 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
     measure,
   );
 
+  // Resolve text color: use theme foreground if shape uses default black
+  const isDefaultColor = shape.color === "#000000";
+  const textColor = isDefaultColor ? theme.foreground : shape.color;
+  const headingColor = isDefaultColor ? theme.headingColor : shape.color;
+
   // Draw background if set
   if (shape.backgroundColor) {
     const hex = COLOR_PALETTE[shape.backgroundColor] || shape.backgroundColor;
@@ -168,7 +173,6 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
   }
 
   ctx.save();
-  ctx.fillStyle = shape.color;
   ctx.textBaseline = "top";
 
   let y = shape.position.y;
@@ -176,7 +180,10 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape) {
     const lineScale = line.sizeScale;
     const lineFontSize = baseFontSize * lineScale;
     const lineH = lineFontSize * LINE_HEIGHT_RATIO;
+    const isHeading = lineScale > 1;
     let x = shape.position.x;
+
+    ctx.fillStyle = isHeading ? headingColor : textColor;
 
     for (const run of line.runs) {
       const weight = run.bold ? "bold" : "normal";
@@ -212,7 +219,7 @@ function drawImageShape(ctx: CanvasRenderingContext2D, shape: ImageShape, imageC
   }
 }
 
-function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape, zoom: number) {
+function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape, zoom: number, accentColor: string) {
   const bounds = getShapeBounds(shape);
   const pad = 6;
   const x1 = bounds.minX - pad, y1 = bounds.minY - pad;
@@ -220,7 +227,7 @@ function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape, zoo
   const h = bounds.maxY - bounds.minY + pad * 2;
 
   ctx.save();
-  ctx.strokeStyle = "#4285f4";
+  ctx.strokeStyle = accentColor;
   ctx.lineWidth = 1.5 / zoom;
   ctx.setLineDash([4 / zoom, 4 / zoom]);
   ctx.strokeRect(x1, y1, w, h);
@@ -234,7 +241,7 @@ function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape, zoo
     [mx, y1], [mx, y1 + h], [x1, my], [x1 + w, my],
   ];
   ctx.fillStyle = "#fff";
-  ctx.strokeStyle = "#4285f4";
+  ctx.strokeStyle = accentColor;
   ctx.lineWidth = 1.5 / zoom;
   for (const [hx, hy] of handles) {
     ctx.fillRect(hx - half, hy - half, handleSize, handleSize);

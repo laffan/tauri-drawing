@@ -65,12 +65,13 @@ export function createTextEditor(state: DrawingState): HTMLElement {
     };
 
     Object.assign(measureDiv.style, fontStyle);
+    const resolvedColor = et.color === "#000000" ? state.theme.foreground : et.color;
     Object.assign(textarea.style, fontStyle, {
       display: "block",
       left: screenPos.x + "px",
       top: screenPos.y + "px",
-      color: et.color,
-      caretColor: et.color,
+      color: resolvedColor,
+      caretColor: resolvedColor,
       minHeight: (scaledLineHeight + 4) + "px",
     });
 
