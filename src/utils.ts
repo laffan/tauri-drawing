@@ -71,9 +71,9 @@ function getMeasureCtx(): CanvasRenderingContext2D {
   return _measureCtx;
 }
 
-export function measureTextWidth(text: string, fontSize: number): number {
+export function measureTextWidth(text: string, fontSize: number, fontFamily?: string): number {
   const ctx = getMeasureCtx();
-  ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+  ctx.font = `${fontSize}px ${fontFamily ? fontFamily + ", " + FONT_FAMILY : FONT_FAMILY}`;
   return ctx.measureText(text).width;
 }
 

@@ -146,13 +146,13 @@ export class DrawingState extends EventTarget {
         const updated = { ...s, text: trimmed };
         // Auto-shrink width to content if not manually resized
         if (!s.manualWidth) {
-          updated.width = autoFitWidth(trimmed, s.fontSize, editing.width);
+          updated.width = autoFitWidth(trimmed, s.fontSize, editing.width, this.fontFamily);
         }
         return updated;
       });
     } else {
       shapeId = generateId();
-      const fitWidth = autoFitWidth(trimmed, editing.fontSize, editing.width);
+      const fitWidth = autoFitWidth(trimmed, editing.fontSize, editing.width, this.fontFamily);
       this.shapes = [...this.shapes, {
         id: shapeId, type: "text", position: editing.position,
         text: trimmed, fontSize: editing.fontSize, color: editing.color,
@@ -682,14 +682,14 @@ export class DrawingState extends EventTarget {
   }
 }
 
-/** Measure widest rendered line (accounting for heading scale) and return fitted width. */
-function autoFitWidth(text: string, fontSize: number, constraintWidth?: number): number {
+/** Measure widest rendered line (accounting for heading scale + font) and return fitted width. */
+function autoFitWidth(text: string, fontSize: number, constraintWidth: number | undefined, fontFamily: string): number {
   const cw = constraintWidth || 350;
   let maxW = 0;
   for (const line of text.split("\n")) {
     const parsed = parseLine(line);
     const displayText = parsed.runs.map((r) => r.text).join("");
-    maxW = Math.max(maxW, measureTextWidth(displayText, fontSize * parsed.sizeScale));
+    maxW = Math.max(maxW, measureTextWidth(displayText, fontSize * parsed.sizeScale, fontFamily));
   }
   return maxW < cw ? Math.max(30, maxW + 8) : cw;
 }
