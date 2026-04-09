@@ -10,6 +10,7 @@ import { createTextEditor } from "./ui/text-editor";
 import { createBrainstormInput } from "./ui/brainstorm-input";
 import { createStatusBar } from "./ui/status-bar";
 import { createSettingsPanel } from "./ui/settings-panel";
+import { createFilePanel } from "./ui/file-panel";
 
 export class NotesCanvas {
   readonly container: HTMLElement;
@@ -100,6 +101,7 @@ export class NotesCanvas {
     container.appendChild(createToolbar(this.state));
     container.appendChild(createBookmarksPanel(this.state));
     container.appendChild(createSettingsPanel(this.state));
+    container.appendChild(createFilePanel(this.state));
     this._shelfPanel = createShelfPanel(this.state, shelfCallbacks);
     container.appendChild(this._shelfPanel);
     container.appendChild(createStatusBar(this.state));

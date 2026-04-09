@@ -66,6 +66,7 @@ export function createTextEditor(state: DrawingState): HTMLElement {
 
     Object.assign(measureDiv.style, fontStyle);
     const resolvedColor = et.color === "#000000" ? state.theme.foreground : et.color;
+    const isEmpty = !et.text;
     Object.assign(textarea.style, fontStyle, {
       display: "block",
       left: screenPos.x + "px",
@@ -73,7 +74,11 @@ export function createTextEditor(state: DrawingState): HTMLElement {
       color: resolvedColor,
       caretColor: resolvedColor,
       minHeight: (scaledLineHeight + 4) + "px",
+      // Blinking left border as cursor indicator when empty
+      borderLeft: isEmpty ? `2px solid ${resolvedColor}` : "none",
+      paddingLeft: isEmpty ? "2px" : "0",
     });
+    textarea.classList.toggle("empty-cursor", isEmpty);
 
     // Sync value if different (avoid cursor jump)
     if (textarea.value !== et.text) textarea.value = et.text;

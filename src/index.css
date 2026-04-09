@@ -43,6 +43,16 @@ textarea.inline-text-editor:focus {
   padding: 0;
   margin: 0;
   box-shadow: none;
+  caret-color: auto;
+}
+
+/* Blinking cursor indicator for empty text fields */
+@keyframes blink-cursor {
+  0%, 100% { border-left-color: currentColor; }
+  50% { border-left-color: transparent; }
+}
+textarea.inline-text-editor.empty-cursor {
+  animation: blink-cursor 1s step-end infinite;
 }
 
 /* Scrollbar styling for shelf */

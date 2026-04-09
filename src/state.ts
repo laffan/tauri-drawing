@@ -522,12 +522,17 @@ export class DrawingState extends EventTarget {
     if (w >= h) { dw = Math.min(maxSize, w); dh = dw / aspect; }
     else { dh = Math.min(maxSize, h); dw = dh * aspect; }
     const pos = position || screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, this.camera);
+    const id = generateId();
     this.shapes = [...this.shapes, {
-      id: generateId(), type: "image", position: { x: pos.x - dw / 2, y: pos.y - dh / 2 },
+      id, type: "image", position: { x: pos.x - dw / 2, y: pos.y - dh / 2 },
       width: dw, height: dh, dataUrl, name, color: "#000000",
     } as ImageShape];
+    this.selectedIds = new Set([id]);
+    this.tool = "select";
     this.recordHistory();
     this.notify("shapes");
+    this.notify("selectedIds");
+    this.notify("tool");
   }
 
   addTextShapeAtCenter(text: string) {
@@ -607,7 +612,35 @@ function applyResize(origShape: Shape, handle: ResizeHandle, orig: { minX: numbe
   const newW = maxX - minX, newH = maxY - minY;
   switch (origShape.type) {
     case "text": return { ...origShape, position: { x: minX, y: minY }, width: Math.max(MIN, newW) };
-    case "image": return { ...origShape, position: { x: minX, y: minY }, width: newW, height: newH };
+    case "image": {
+      // Lock aspect ratio: compute new size from the dominant axis
+      const origW = orig.maxX - orig.minX;
+      const origH = orig.maxY - orig.minY;
+      const aspect = origW / (origH || 1);
+      if (handle === "n" || handle === "s") {
+        // Vertical-only handle: adjust width to match
+        const newW2 = newH * aspect;
+        const cx = (minX + maxX) / 2;
+        minX = cx - newW2 / 2;
+        maxX = cx + newW2 / 2;
+      } else if (handle === "e" || handle === "w") {
+        // Horizontal-only handle: adjust height to match
+        const newH2 = newW / aspect;
+        const cy = (minY + maxY) / 2;
+        minY = cy - newH2 / 2;
+        maxY = cy + newH2 / 2;
+      } else {
+        // Corner handle: use the larger delta to determine size
+        const scaleX = (maxX - minX) / origW;
+        const scaleY = (maxY - minY) / origH;
+        const scale = Math.max(scaleX, scaleY);
+        const finalW = origW * scale;
+        const finalH = origH * scale;
+        if (handle.includes("e")) maxX = minX + finalW; else minX = maxX - finalW;
+        if (handle.includes("s")) maxY = minY + finalH; else minY = maxY - finalH;
+      }
+      return { ...origShape, position: { x: minX, y: minY }, width: maxX - minX, height: maxY - minY };
+    }
     case "drag-area": return { ...origShape, position: { x: minX, y: minY }, width: newW, height: newH };
     case "draw": {
       const ow = orig.maxX - orig.minX || 1, oh = orig.maxY - orig.minY || 1;
