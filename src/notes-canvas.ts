@@ -148,6 +148,8 @@ export class NotesCanvas {
         editingShapeId: this.state.editingText?.shapeId ?? null,
         imageCache: this._imageCache,
         theme: this.state.theme,
+        backgroundPattern: this.state.backgroundPattern,
+        gridSpacing: this.state.gridSpacing,
       });
       this._rafId = requestAnimationFrame(loop);
     };

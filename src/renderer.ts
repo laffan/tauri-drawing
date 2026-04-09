@@ -13,6 +13,8 @@ export interface RenderState {
   editingShapeId: string | null;
   imageCache: Map<string, HTMLImageElement>;
   theme: CanvasTheme;
+  backgroundPattern: "grid" | "dot-grid" | "blank";
+  gridSpacing: number;
 }
 
 export function render(canvas: HTMLCanvasElement, state: RenderState): void {
@@ -27,7 +29,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     canvas.height = h * dpr;
   }
 
-  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache, theme } = state;
+  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache, theme, backgroundPattern, gridSpacing } = state;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -35,7 +37,9 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   ctx.fillStyle = theme.canvasBackground;
   ctx.fillRect(0, 0, w, h);
 
-  drawGrid(ctx, camera, w, h, theme.gridColor);
+  if (backgroundPattern !== "blank") {
+    drawBackground(ctx, camera, w, h, theme.gridColor, backgroundPattern, gridSpacing);
+  }
 
   ctx.save();
   ctx.translate(camera.x, camera.y);
@@ -266,20 +270,31 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, box: SelectionBox, came
   ctx.restore();
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number, gridColor: string) {
-  const gridSize = 25;
-  const scaledSize = gridSize * camera.zoom;
-  if (scaledSize < 8) return;
-  ctx.save();
-  ctx.strokeStyle = gridColor;
-  ctx.lineWidth = 0.5;
+function drawBackground(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number, color: string, pattern: "grid" | "dot-grid", spacing: number) {
+  const scaledSize = spacing * camera.zoom;
+  if (scaledSize < 6) return;
   const offsetX = camera.x % scaledSize;
   const offsetY = camera.y % scaledSize;
-  for (let x = offsetX; x < w; x += scaledSize) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-  }
-  for (let y = offsetY; y < h; y += scaledSize) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  ctx.save();
+  if (pattern === "grid") {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.5;
+    for (let x = offsetX; x < w; x += scaledSize) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = offsetY; y < h; y += scaledSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = color;
+    const radius = Math.max(0.8, scaledSize / 25);
+    for (let x = offsetX; x < w; x += scaledSize) {
+      for (let y = offsetY; y < h; y += scaledSize) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
   ctx.restore();
 }

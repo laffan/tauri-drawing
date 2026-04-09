@@ -19,12 +19,12 @@ export function createShelfPanel(
   const pinned = new Set<string>();
 
   const panel = h("div", {
-    style: { position: "absolute", top: "0", right: "0", height: "100%", background: "#fff", borderLeft: "1px solid #e5e7eb", zIndex: "150", display: "flex", flexDirection: "column", transition: "width 0.2s", overflow: "hidden", width: "24px", minWidth: "24px" },
+    style: { position: "absolute", top: "0", right: "0", height: "100%", zIndex: "150", display: "flex", flexDirection: "column", transition: "width 0.2s", overflow: "hidden", width: "24px", minWidth: "24px" },
   });
 
   const grip = h("button", {
-    text: "‹",
-    style: { width: "24px", height: "60px", position: "absolute", left: "0", top: "50%", transform: "translateY(-50%)", background: "#f8f9fa", border: "1px solid #e5e7eb", borderRight: "none", borderRadius: "4px 0 0 4px", cursor: "pointer", fontSize: "14px", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", zIndex: "10" },
+    text: "\u2039",
+    style: { width: "24px", height: "60px", position: "absolute", left: "0", top: "50%", transform: "translateY(-50%)", border: "none", borderRight: "none", borderRadius: "4px 0 0 4px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: "10" },
     onClick: () => { isOpen = !isOpen; rebuild(); },
   });
   panel.appendChild(grip);
@@ -34,6 +34,17 @@ export function createShelfPanel(
   });
   panel.appendChild(content);
 
+  function t() { return state.theme; }
+
+  function applyTheme() {
+    const theme = t();
+    panel.style.background = theme.uiBackground;
+    panel.style.borderLeft = `1px solid ${theme.uiBorder}`;
+    grip.style.background = theme.variant === "dark" ? "rgba(255,255,255,0.05)" : "#f8f9fa";
+    grip.style.borderColor = theme.uiBorder;
+    grip.style.color = theme.foreground;
+  }
+
   function buildNodes(shapes: Shape[]): ShelfNode[] {
     const result: ShelfNode[] = [];
     const dragAreas = shapes.filter((s) => s.type === "drag-area");
@@ -42,10 +53,10 @@ export function createShelfPanel(
     for (const da of dragAreas) {
       const children = shapes.filter((s) => s.parentId === da.id);
       const textChildren = children.filter((s) => s.type === "text");
-      let name = `🧺 (${children.length} items)`;
+      let name = `\ud83e\uddfa (${children.length} items)`;
       if (textChildren.length > 0) {
         const sorted = [...textChildren].sort((a, b) => { const ab = getShapeBounds(a); const bb = getShapeBounds(b); return ab.minY - bb.minY || ab.minX - bb.minX; });
-        if (sorted[0].type === "text") { const t = sorted[0].text.substring(0, 40); name = `🧺 ${t}${sorted[0].text.length > 40 ? "..." : ""}`; }
+        if (sorted[0].type === "text") { const tx = sorted[0].text.substring(0, 40); name = `\ud83e\uddfa ${tx}${sorted[0].text.length > 40 ? "..." : ""}`; }
       }
       result.push({ id: da.id, type: "drag-area", label: name, excerpt: "", color: da.type === "drag-area" ? da.strokeColor : null, shapeId: da.id, parentId: undefined, depth: 0 });
       if (!collapsed.has(da.id)) {
@@ -73,9 +84,18 @@ export function createShelfPanel(
   }
 
   function rebuild() {
+    applyTheme();
+    const theme = t();
+    const fg = theme.foreground;
+    const muted = theme.variant === "dark" ? "rgba(255,255,255,0.4)" : "#888";
+    const border = theme.uiBorder;
+    const subtleBorder = theme.variant === "dark" ? "rgba(255,255,255,0.04)" : "#f8f9fa";
+    const inputBg = theme.variant === "dark" ? "rgba(255,255,255,0.06)" : "#fff";
+    const inputBorder = theme.variant === "dark" ? "rgba(255,255,255,0.12)" : "#e5e7eb";
+
     panel.style.width = isOpen ? "280px" : "24px";
     panel.style.minWidth = isOpen ? "280px" : "24px";
-    grip.textContent = isOpen ? "›" : "‹";
+    grip.textContent = isOpen ? "\u203a" : "\u2039";
     content.style.display = isOpen ? "flex" : "none";
     if (!isOpen) return;
 
@@ -83,12 +103,12 @@ export function createShelfPanel(
 
     // Search
     const searchContainer = h("div", { style: { padding: "8px", position: "relative" } });
-    const searchInput = h("input", { attrs: { type: "text", placeholder: "Search..." }, style: { width: "100%", padding: "6px 28px 6px 8px", border: "1px solid #e5e7eb", borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" } });
+    const searchInput = h("input", { attrs: { type: "text", placeholder: "Search..." }, style: { width: "100%", padding: "6px 28px 6px 8px", border: `1px solid ${inputBorder}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box", background: inputBg, color: fg } });
     (searchInput as HTMLInputElement).value = search;
     searchInput.addEventListener("input", () => { search = (searchInput as HTMLInputElement).value; rebuild(); });
     searchContainer.appendChild(searchInput);
     if (search) {
-      searchContainer.appendChild(h("button", { text: "×", style: { position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", fontSize: "16px", color: "#999" }, onClick: () => { search = ""; rebuild(); } }));
+      searchContainer.appendChild(h("button", { text: "\u00d7", style: { position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", fontSize: "16px", color: muted }, onClick: () => { search = ""; rebuild(); } }));
     }
     content.appendChild(searchContainer);
 
@@ -102,7 +122,8 @@ export function createShelfPanel(
     if (sortedTags.length > 0) {
       const tagBar = h("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px", padding: "0 8px 8px" } });
       for (const tag of sortedTags) {
-        tagBar.appendChild(h("button", { text: `#${tag}`, style: { padding: "2px 8px", border: "none", borderRadius: "10px", fontSize: "11px", cursor: "pointer", background: activeTag === tag ? "#4285f4" : "#f1f3f5", color: activeTag === tag ? "#fff" : "#555" }, onClick: () => { activeTag = activeTag === tag ? null : tag; rebuild(); } }));
+        const active = activeTag === tag;
+        tagBar.appendChild(h("button", { text: `#${tag}`, style: { padding: "2px 8px", border: "none", borderRadius: "10px", fontSize: "11px", cursor: "pointer", background: active ? theme.accent : (theme.variant === "dark" ? "rgba(255,255,255,0.08)" : "#f1f3f5"), color: active ? "#fff" : muted }, onClick: () => { activeTag = activeTag === tag ? null : tag; rebuild(); } }));
       }
       content.appendChild(tagBar);
     }
@@ -117,25 +138,19 @@ export function createShelfPanel(
 
     // Shelf items
     if (opts.shelfItems.length > 0) {
-      const section = h("div", { style: { padding: "4px 8px", borderBottom: "1px solid #f1f3f5" } });
-      section.appendChild(h("div", { text: "Shelf Items", style: { fontSize: "11px", fontWeight: "600", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
+      const section = h("div", { style: { padding: "4px 8px", borderBottom: `1px solid ${border}` } });
+      section.appendChild(h("div", { text: "Shelf Items", style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
       opts.shelfItems.forEach((text, i) => {
         const row = h("div", {
-          style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 0", fontSize: "13px", borderBottom: "1px solid #f8f9fa", cursor: "grab" },
+          style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 0", fontSize: "13px", borderBottom: `1px solid ${subtleBorder}`, cursor: "grab", color: fg },
           attrs: { draggable: "true" },
         });
         row.addEventListener("dragstart", (e) => {
           if (e.dataTransfer) {
             e.dataTransfer.setData("application/x-shelf-index", String(i));
             e.dataTransfer.effectAllowed = "copyMove";
-            // Create drag ghost
             const ghost = document.createElement("div");
-            Object.assign(ghost.style, {
-              padding: "6px 12px", background: "rgba(66,133,244,0.9)", color: "#fff",
-              borderRadius: "6px", fontSize: "13px", maxWidth: "200px",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              position: "absolute", top: "-1000px",
-            });
+            Object.assign(ghost.style, { padding: "6px 12px", background: theme.accent, color: "#fff", borderRadius: "6px", fontSize: "13px", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", position: "absolute", top: "-1000px" });
             ghost.textContent = text.substring(0, 50);
             document.body.appendChild(ghost);
             e.dataTransfer.setDragImage(ghost, 10, 10);
@@ -143,7 +158,7 @@ export function createShelfPanel(
           }
         });
         row.appendChild(h("span", { text, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }));
-        row.appendChild(h("button", { text: "×", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5" }, onClick: () => opts.onRemoveShelfItem(i) }));
+        row.appendChild(h("button", { text: "\u00d7", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5", color: muted }, onClick: () => opts.onRemoveShelfItem(i) }));
         section.appendChild(row);
       });
       content.appendChild(section);
@@ -151,8 +166,8 @@ export function createShelfPanel(
 
     // Pinned
     if (pinnedItems.length > 0) {
-      const section = h("div", { style: { padding: "4px 8px", borderBottom: "1px solid #f1f3f5" } });
-      section.appendChild(h("div", { text: "📌 Pinned", style: { fontSize: "11px", fontWeight: "600", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
+      const section = h("div", { style: { padding: "4px 8px", borderBottom: `1px solid ${border}` } });
+      section.appendChild(h("div", { text: "\ud83d\udccc Pinned", style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
       pinnedItems.forEach((n) => section.appendChild(makeNodeRow(n, true)));
       content.appendChild(section);
     }
@@ -160,19 +175,23 @@ export function createShelfPanel(
     // All items
     const scrollArea = h("div", { style: { flex: "1", overflowY: "auto", padding: "4px 0" } });
     if (unpinnedItems.length === 0 && opts.shelfItems.length === 0) {
-      scrollArea.appendChild(h("div", { text: "No items. Add shapes to the canvas.", style: { padding: "16px", textAlign: "center", fontSize: "12px", color: "#999" } }));
+      scrollArea.appendChild(h("div", { text: "No items. Add shapes to the canvas.", style: { padding: "16px", textAlign: "center", fontSize: "12px", color: muted } }));
     }
     unpinnedItems.forEach((n) => scrollArea.appendChild(makeNodeRow(n, false)));
     content.appendChild(scrollArea);
   }
 
   function makeNodeRow(node: ShelfNode, isPinned: boolean): HTMLElement {
-    const row = h("div", { style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "13px", borderBottom: "1px solid #f8f9fa", paddingLeft: (8 + node.depth * 16) + "px", borderLeft: node.color ? `3px solid ${node.color}` : "3px solid transparent" } });
+    const theme = t();
+    const fg = theme.foreground;
+    const muted = theme.variant === "dark" ? "rgba(255,255,255,0.4)" : "#999";
+    const subtleBorder = theme.variant === "dark" ? "rgba(255,255,255,0.04)" : "#f8f9fa";
+    const row = h("div", { style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "13px", borderBottom: `1px solid ${subtleBorder}`, paddingLeft: (8 + node.depth * 16) + "px", borderLeft: node.color ? `3px solid ${node.color}` : "3px solid transparent", color: fg } });
     if (node.type === "drag-area") {
-      row.appendChild(h("button", { text: collapsed.has(node.id) ? "▸" : "▾", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", color: "#999", padding: "0", width: "16px" }, onClick: () => { if (collapsed.has(node.id)) collapsed.delete(node.id); else collapsed.add(node.id); rebuild(); } }));
+      row.appendChild(h("button", { text: collapsed.has(node.id) ? "\u25b8" : "\u25be", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", color: muted, padding: "0", width: "16px" }, onClick: () => { if (collapsed.has(node.id)) collapsed.delete(node.id); else collapsed.add(node.id); rebuild(); } }));
     }
-    row.appendChild(h("span", { text: (node.type === "image" ? "🖼 " : "") + node.label, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }, onClick: () => state.focusShape(node.shapeId) }));
-    row.appendChild(h("button", { text: isPinned ? "📌" : "📍", title: isPinned ? "Unpin" : "Pin", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5" }, onClick: () => { if (isPinned) pinned.delete(node.id); else pinned.add(node.id); rebuild(); } }));
+    row.appendChild(h("span", { text: (node.type === "image" ? "\ud83d\uddbc " : "") + node.label, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }, onClick: () => state.focusShape(node.shapeId) }));
+    row.appendChild(h("button", { text: isPinned ? "\ud83d\udccc" : "\ud83d\udccd", title: isPinned ? "Unpin" : "Pin", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5", color: muted }, onClick: () => { if (isPinned) pinned.delete(node.id); else pinned.add(node.id); rebuild(); } }));
     return row;
   }
 

@@ -23,6 +23,8 @@ export interface EditingText {
 export type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
 const HANDLE_SIZE = 8;
 
+export type BackgroundPattern = "grid" | "dot-grid" | "blank";
+
 type StateKey = "shapes" | "selectedIds" | "tool" | "color"
   | "fontSize" | "camera" | "selectionBox" | "editingText"
   | "bookmarks" | "brainstormMode" | "creatingDragArea" | "theme";
@@ -47,6 +49,8 @@ export class DrawingState extends EventTarget {
   // Appearance
   appearanceMode: AppearanceMode = "light";
   themeId = "default";
+  backgroundPattern: BackgroundPattern = "grid";
+  gridSpacing = 25;
 
   get theme(): CanvasTheme {
     const variant = getEffectiveVariant(this.appearanceMode);
@@ -537,13 +541,13 @@ export class DrawingState extends EventTarget {
 
   addTextShapeAtCenter(text: string) {
     const pos = screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, this.camera);
-    this.shapes = [...this.shapes, { id: generateId(), type: "text", position: pos, text, fontSize: 18, color: "#000000" } as TextShape];
+    this.shapes = [...this.shapes, { id: generateId(), type: "text", position: pos, text, fontSize: 18, color: "#000000", width: 350 } as TextShape];
     this.recordHistory();
     this.notify("shapes");
   }
 
   addTextShapeAtPosition(text: string, position: Point) {
-    this.shapes = [...this.shapes, { id: generateId(), type: "text", position, text, fontSize: 18, color: "#000000" } as TextShape];
+    this.shapes = [...this.shapes, { id: generateId(), type: "text", position, text, fontSize: 18, color: "#000000", width: 350 } as TextShape];
     this.recordHistory();
     this.notify("shapes");
   }

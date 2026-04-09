@@ -107,6 +107,48 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
     themeSection.appendChild(grid);
     modal.appendChild(themeSection);
 
+    // Background pattern
+    const bgSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });
+    bgSection.appendChild(h("div", { text: "Background Pattern", style: { fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "8px" } }));
+    const patternRow = h("div", { style: { display: "flex", gap: "6px", marginBottom: "10px" } });
+    const patterns: { label: string; value: "grid" | "dot-grid" | "blank" }[] = [
+      { label: "Grid", value: "grid" },
+      { label: "Dots", value: "dot-grid" },
+      { label: "Blank", value: "blank" },
+    ];
+    for (const pat of patterns) {
+      const active = state.backgroundPattern === pat.value;
+      patternRow.appendChild(h("button", {
+        text: pat.label,
+        style: {
+          padding: "5px 14px", border: "1px solid " + (active ? "#4285f4" : "#ddd"), borderRadius: "6px",
+          background: active ? "#4285f4" : "#fff", color: active ? "#fff" : "#555",
+          cursor: "pointer", fontSize: "12px", fontWeight: active ? "600" : "400",
+        },
+        onClick: () => { state.backgroundPattern = pat.value; state.notify("theme"); rebuild(); },
+      }));
+    }
+    bgSection.appendChild(patternRow);
+    if (state.backgroundPattern !== "blank") {
+      bgSection.appendChild(h("div", { text: "Spacing", style: { fontSize: "12px", color: "#666", marginBottom: "4px" } }));
+      const spacingRow = h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+      const spacingInput = h("input", {
+        attrs: { type: "range", min: "10", max: "60", step: "5" },
+        style: { flex: "1" },
+      }) as HTMLInputElement;
+      spacingInput.value = String(state.gridSpacing);
+      const spacingLabel = h("span", { text: `${state.gridSpacing}px`, style: { fontSize: "12px", color: "#666", minWidth: "36px" } });
+      spacingInput.addEventListener("input", () => {
+        state.gridSpacing = parseInt(spacingInput.value, 10);
+        spacingLabel.textContent = `${state.gridSpacing}px`;
+        state.notify("theme");
+      });
+      spacingRow.appendChild(spacingInput);
+      spacingRow.appendChild(spacingLabel);
+      bgSection.appendChild(spacingRow);
+    }
+    modal.appendChild(bgSection);
+
     // Font size setting
     const fontSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });
     fontSection.appendChild(h("div", { text: "Default Font Size", style: { fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "8px" } }));
