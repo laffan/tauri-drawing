@@ -1,4 +1,14 @@
-/** Pure helper functions for state operations (split from state.ts for file size). */
+/** Helper functions for state operations (split from state.ts for file size). */
+
+/** Open a URL using Tauri's opener plugin (desktop) or window.open (web fallback). */
+export async function openExternalUrl(url: string) {
+  try {
+    const opener = await import("@tauri-apps/plugin-opener");
+    await opener.openUrl(url);
+  } catch {
+    window.open(url, "_blank");
+  }
+}
 import type { ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
 import { hitTestShape } from "./utils";
@@ -63,7 +73,7 @@ export function applyResize(origShape: Shape, handle: ResizeHandle, orig: { minX
   if (maxY - minY < MIN) { if (handle.includes("n")) minY = maxY - MIN; else maxY = minY + MIN; }
   const newW = maxX - minX, newH = maxY - minY;
   switch (origShape.type) {
-    case "text": return { ...origShape, position: { x: minX, y: minY }, width: Math.max(MIN, newW) };
+    case "text": return { ...origShape, position: { x: minX, y: minY }, width: Math.max(MIN, newW), manualWidth: true };
     case "image": {
       const origW = orig.maxX - orig.minX;
       const origH = orig.maxY - orig.minY;

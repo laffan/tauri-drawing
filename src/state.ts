@@ -5,14 +5,15 @@ import type {
 import { COLOR_PALETTE } from "./types";
 import {
   alignShapes, boundsOverlap, distributeShapes, generateId,
-  getShapeBounds, hitTestShape, pointInBounds, screenToCanvas,
+  getShapeBounds, hitTestShape, measureTextWidth,
+  pointInBounds, screenToCanvas,
 } from "./utils";
 import { UndoManager } from "./undo-manager";
 import type { AppearanceMode, CanvasTheme } from "./themes";
 import { THEMES, getEffectiveVariant } from "./themes";
 import {
   findShapeAtPoint, hitTestLink, normalizeBox, moveShape,
-  applyResize, applyCropResize,
+  applyResize, applyCropResize, openExternalUrl,
 } from "./state-helpers";
 
 export interface EditingText {
@@ -139,15 +140,22 @@ export class DrawingState extends EventTarget {
     let shapeId: string;
     if (editing.shapeId) {
       shapeId = editing.shapeId;
-      this.shapes = this.shapes.map((s) =>
-        s.id === editing.shapeId && s.type === "text" ? { ...s, text: trimmed } : s
-      );
+      this.shapes = this.shapes.map((s) => {
+        if (s.id !== editing.shapeId || s.type !== "text") return s;
+        const updated = { ...s, text: trimmed };
+        // Auto-shrink width to content if not manually resized
+        if (!s.manualWidth) {
+          updated.width = autoFitWidth(trimmed, s.fontSize, editing.width);
+        }
+        return updated;
+      });
     } else {
       shapeId = generateId();
+      const fitWidth = autoFitWidth(trimmed, editing.fontSize, editing.width);
       this.shapes = [...this.shapes, {
         id: shapeId, type: "text", position: editing.position,
         text: trimmed, fontSize: editing.fontSize, color: editing.color,
-        width: editing.width,
+        width: fitWidth,
       } as TextShape];
     }
     this.selectedIds = new Set([shapeId]);
@@ -162,7 +170,8 @@ export class DrawingState extends EventTarget {
     this.editingText = {
       shapeId: shape.id, position: shape.position,
       text: shape.text, fontSize: shape.fontSize, color: shape.color,
-      width: shape.width,
+      // Widen to at least 350 for comfortable editing, unless manually set wider
+      width: shape.manualWidth ? shape.width : Math.max(350, shape.width || 0),
     };
     this.notify("editingText");
   }
@@ -672,12 +681,10 @@ export class DrawingState extends EventTarget {
   }
 }
 
-/** Open a URL using Tauri's opener plugin (desktop) or window.open (web fallback). */
-async function openExternalUrl(url: string) {
-  try {
-    const opener = await import("@tauri-apps/plugin-opener");
-    await opener.openUrl(url);
-  } catch {
-    window.open(url, "_blank");
-  }
+/** Measure widest line and return fitted width, capped at constraint. Short text gets a tight box. */
+function autoFitWidth(text: string, fontSize: number, constraintWidth?: number): number {
+  const cw = constraintWidth || 350;
+  const maxW = Math.max(...text.split("\n").map((l) => measureTextWidth(l, fontSize)));
+  return maxW < cw ? Math.max(30, maxW + 8) : cw;
 }
+

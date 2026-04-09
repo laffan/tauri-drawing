@@ -50,6 +50,7 @@ export interface TextShape extends ShapeBase {
   text: string;
   fontSize: number;
   width?: number; // constraint width for wrapping; undefined = auto-size
+  manualWidth?: boolean; // true if user explicitly resized via handles
   backgroundColor?: string;
 }
 
