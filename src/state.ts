@@ -2,7 +2,7 @@ import type {
   Camera, CameraBookmark, DragAreaShape, ImageShape,
   Point, SelectionBox, Shape, TextShape, Tool,
 } from "./types";
-import { COLOR_PALETTE } from "./types";
+import { COLOR_PALETTE, FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
 import {
   alignShapes, boundsOverlap, generateId,
   getShapeBounds, hitTestShape, pointInBounds, screenToCanvas,
@@ -10,6 +10,7 @@ import {
 import { UndoManager } from "./undo-manager";
 import type { AppearanceMode, CanvasTheme } from "./themes";
 import { THEMES, getEffectiveVariant } from "./themes";
+import { parseText } from "./markdown";
 
 export interface EditingText {
   shapeId: string | null;
@@ -51,7 +52,7 @@ export class DrawingState extends EventTarget {
   themeId = "default";
   backgroundPattern: BackgroundPattern = "grid";
   gridSpacing = 25;
-  gridOpacity = 1;
+  gridOpacity = 0.15;
 
   get theme(): CanvasTheme {
     const variant = getEffectiveVariant(this.appearanceMode);
@@ -244,6 +245,13 @@ export class DrawingState extends EventTarget {
       }
 
       const hitShape = findShapeAtPoint(canvasPt, this.shapes);
+
+      // Cmd+click on a link: open in browser
+      if (hitShape && hitShape.type === "text" && (e.metaKey || e.ctrlKey)) {
+        const link = hitTestLink(canvasPt, hitShape);
+        if (link) { window.open(link, "_blank"); return; }
+      }
+
       if (hitShape) {
         const groupMembers = hitShape.groupId
           ? this.shapes.filter((s) => s.groupId === hitShape.groupId).map((s) => s.id)
@@ -598,6 +606,30 @@ function findShapeAtPoint(pt: Point, shapes: Shape[]): Shape | null {
   }
   for (let i = shapes.length - 1; i >= 0; i--) {
     if (shapes[i].type === "drag-area" && hitTestShape(pt, shapes[i])) return shapes[i];
+  }
+  return null;
+}
+
+/** Hit-test a point against link runs in a text shape. Returns the URL or null. */
+function hitTestLink(pt: Point, shape: TextShape): string | null {
+  const fs = shape.fontSize;
+  const measure = (t: string, s: number) => {
+    const c = document.createElement("canvas").getContext("2d")!;
+    c.font = `${s}px ${FONT_FAMILY}`;
+    return c.measureText(t).width;
+  };
+  const lines = parseText(shape.text, shape.width && shape.width > 0 ? shape.width : undefined, fs, measure);
+  let y = shape.position.y;
+  for (const line of lines) {
+    const lfs = fs * line.sizeScale;
+    const lh = lfs * LINE_HEIGHT_RATIO;
+    let x = shape.position.x;
+    for (const run of line.runs) {
+      const w = measure(run.text, lfs);
+      if (run.link && pt.x >= x && pt.x <= x + w && pt.y >= y && pt.y <= y + lh) return run.link;
+      x += w;
+    }
+    y += lh;
   }
   return null;
 }

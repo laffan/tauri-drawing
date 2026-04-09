@@ -39,7 +39,8 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   ctx.fillRect(0, 0, w, h);
 
   if (backgroundPattern !== "blank" && gridOpacity > 0) {
-    drawBackground(ctx, camera, w, h, theme.gridColor, backgroundPattern, gridSpacing, gridOpacity);
+    // Use foreground color at scaled opacity (100% slider = 80% alpha of foreground)
+    drawBackground(ctx, camera, w, h, theme.foreground, backgroundPattern, gridSpacing, gridOpacity * 0.8);
   }
 
   ctx.save();

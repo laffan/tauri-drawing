@@ -8,14 +8,14 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     style: { position: "absolute", display: "none", gap: "2px", zIndex: "200", pointerEvents: "auto" },
   });
 
-  let colorPickerEl: HTMLElement | null = null;
-  let bgPickerEl: HTMLElement | null = null;
-  let sizeSliderEl: HTMLElement | null = null;
+  let activePopup: "color" | "bg" | "size" | null = null;
+  let popupEl: HTMLElement | null = null;
+  let popupWrapper: HTMLElement | null = null;
 
-  function closePopups() {
-    if (colorPickerEl) { colorPickerEl.remove(); colorPickerEl = null; }
-    if (bgPickerEl) { bgPickerEl.remove(); bgPickerEl = null; }
-    if (sizeSliderEl) { sizeSliderEl.remove(); sizeSliderEl = null; }
+  function closePopup() {
+    if (popupEl) { popupEl.remove(); popupEl = null; }
+    activePopup = null;
+    popupWrapper = null;
   }
 
   function makeIconBtn(icon: string, title: string, onClick: () => void): HTMLButtonElement {
@@ -54,7 +54,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
       style: { position: "absolute", top: "-44px", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: "#fff", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: "300", whiteSpace: "nowrap" },
     });
     const slider = h("input", {
-      attrs: { type: "range", min: "10", max: "72", step: "1" },
+      attrs: { type: "range", min: "6", max: "30", step: "1" },
       style: { width: "100px" },
     }) as HTMLInputElement;
     slider.value = String(currentSize);
@@ -64,6 +64,8 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
       label.textContent = `${v}px`;
       onChange(v);
     });
+    // Prevent pointer events from reaching the canvas during slider interaction
+    panel.addEventListener("pointerdown", (e) => e.stopPropagation());
     panel.appendChild(h("span", { text: "A", style: { fontSize: "10px", color: "#999" } }));
     panel.appendChild(slider);
     panel.appendChild(h("span", { text: "A", style: { fontSize: "16px", fontWeight: "600", color: "#555" } }));
@@ -71,10 +73,32 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     return panel;
   }
 
+  // Close popup on click outside
+  document.addEventListener("pointerdown", (e) => {
+    if (!popupEl || !activePopup) return;
+    const target = e.target as HTMLElement;
+    if (popupEl.contains(target)) return;
+    // Check if click is on the button that opened it (toggle behavior)
+    if (popupWrapper?.contains(target)) return;
+    closePopup();
+  });
+
+  function togglePopup(type: "color" | "bg" | "size", wrapper: HTMLElement, create: () => HTMLElement) {
+    if (activePopup === type) { closePopup(); return; }
+    closePopup();
+    popupEl = create();
+    popupWrapper = wrapper;
+    activePopup = type;
+    wrapper.appendChild(popupEl);
+  }
+
   function update() {
+    // Preserve popup state across rebuilds
+    const savedPopup = activePopup;
     clearChildren(container);
-    colorPickerEl = null;
-    bgPickerEl = null;
+    popupEl = null;
+    popupWrapper = null;
+    activePopup = null;
 
     if (state.selectedIds.size === 0) {
       container.style.display = "none";
@@ -103,55 +127,57 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
     const multiSelect = selected.length > 1;
 
-    if (multiSelect) container.appendChild(makeIconBtn("📐", "Align left", () => state.alignSelected("left")));
-    if (hasText) container.appendChild(makeIconBtn("📋", "Move to shelf", onMoveToShelf));
+    if (multiSelect) container.appendChild(makeIconBtn("\ud83d\udcd0", "Align left", () => state.alignSelected("left")));
+    if (hasText) container.appendChild(makeIconBtn("\ud83d\udccb", "Move to shelf", onMoveToShelf));
 
     if (hasColorable) {
       const wrapper = h("div", { style: { position: "relative" } });
       wrapper.appendChild(makeIconBtn("\ud83d\udd8d\ufe0f", "Text color", () => {
-        const wasOpen = !!colorPickerEl;
-        closePopups();
-        if (wasOpen) return;
-        colorPickerEl = makePalette(TEXT_COLORS, (c) => {
+        togglePopup("color", wrapper, () => makePalette(TEXT_COLORS, (c) => {
           state.changeSelectedColor(c === "reset" ? "black" : c);
-          closePopups();
-        });
-        wrapper.appendChild(colorPickerEl);
+          closePopup();
+        }));
       }));
       container.appendChild(wrapper);
+      if (savedPopup === "color") togglePopup("color", wrapper, () => makePalette(TEXT_COLORS, (c) => {
+        state.changeSelectedColor(c === "reset" ? "black" : c);
+        closePopup();
+      }));
     }
 
     if (hasBgable) {
       const wrapper = h("div", { style: { position: "relative" } });
       wrapper.appendChild(makeIconBtn("\ud83e\udea3", "Background", () => {
-        const wasOpen = !!bgPickerEl;
-        closePopups();
-        if (wasOpen) return;
-        bgPickerEl = makePalette(BACKGROUND_COLORS, (c) => {
+        togglePopup("bg", wrapper, () => makePalette(BACKGROUND_COLORS, (c) => {
           state.changeSelectedBackground(c);
-          closePopups();
-        });
-        wrapper.appendChild(bgPickerEl);
+          closePopup();
+        }));
       }));
       container.appendChild(wrapper);
+      if (savedPopup === "bg") togglePopup("bg", wrapper, () => makePalette(BACKGROUND_COLORS, (c) => {
+        state.changeSelectedBackground(c);
+        closePopup();
+      }));
     }
 
-    // Font size slider
     if (hasText) {
       const wrapper = h("div", { style: { position: "relative" } });
       wrapper.appendChild(makeIconBtn("\ud83d\udd0d", "Text size", () => {
-        const wasOpen = !!sizeSliderEl;
-        closePopups();
-        if (wasOpen) return;
-        // Get current font size from first selected text shape
         const textShape = selected.find((s) => s.type === "text");
         const currentSize = textShape && textShape.type === "text" ? textShape.fontSize : 18;
-        sizeSliderEl = makeSizeSlider(currentSize, (size) => {
+        togglePopup("size", wrapper, () => makeSizeSlider(currentSize, (size) => {
           state.changeSelectedFontSize(size);
-        });
-        wrapper.appendChild(sizeSliderEl);
+        }));
       }));
       container.appendChild(wrapper);
+      // Restore size slider if it was open
+      if (savedPopup === "size") {
+        const textShape = selected.find((s) => s.type === "text");
+        const currentSize = textShape && textShape.type === "text" ? textShape.fontSize : 18;
+        togglePopup("size", wrapper, () => makeSizeSlider(currentSize, (size) => {
+          state.changeSelectedFontSize(size);
+        }));
+      }
     }
 
     container.appendChild(makeIconBtn("\ud83d\uddd1", "Delete", () => state.deleteSelected()));
