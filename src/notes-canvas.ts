@@ -2,7 +2,6 @@ import type { Shape } from "./types";
 import { DrawingState } from "./state";
 import { render } from "./renderer";
 import { bindInputEvents } from "./input-handler";
-import { screenToCanvas } from "./utils";
 import { createToolbar } from "./ui/toolbar";
 import { createSelectionToolbar } from "./ui/selection-toolbar";
 import { createBookmarksPanel } from "./ui/bookmarks-panel";
@@ -52,7 +51,15 @@ export class NotesCanvas {
     this.state.canvasEl = this._canvas;
 
     // Bind input events
-    this._cleanupInput = bindInputEvents(this._canvas, this.state);
+    this._cleanupInput = bindInputEvents(this._canvas, this.state, {
+      onShelfDrop: (idx, x, y) => {
+        if (idx < 0 || idx >= this._shelfItems.length) return;
+        const text = this._shelfItems[idx];
+        this.state.addTextShapeAtPosition(text, { x, y });
+        this._shelfItems.splice(idx, 1);
+        this._rebuildShelf();
+      },
+    });
 
     // Update cursor on tool change
     const cursorMap: Record<string, string> = {
@@ -66,25 +73,10 @@ export class NotesCanvas {
     // Image cache management
     this.state.addEventListener("change", () => this._syncImageCache());
 
-    // Handle shelf item drops on canvas
-    this._canvas.addEventListener("dragover", (e) => {
-      if (e.dataTransfer?.types.includes("application/x-shelf-index")) {
-        e.preventDefault();
-        e.dataTransfer!.dropEffect = "move";
-      }
-    });
-    this._canvas.addEventListener("drop", (e) => {
-      const indexStr = e.dataTransfer?.getData("application/x-shelf-index");
-      if (indexStr == null) return;
-      e.preventDefault();
-      const idx = parseInt(indexStr, 10);
-      if (idx < 0 || idx >= this._shelfItems.length) return;
-      const text = this._shelfItems[idx];
-      const rect = this._canvas.getBoundingClientRect();
-      const dropPos = screenToCanvas({ x: e.clientX - rect.left, y: e.clientY - rect.top }, this.state.camera);
-      this.state.addTextShapeAtPosition(text, dropPos);
-      this._shelfItems.splice(idx, 1);
-      this._rebuildShelf();
+    // Apply theme to container
+    this.state.addEventListener("change", () => {
+      const t = this.state.theme;
+      container.style.background = t.canvasBackground;
     });
 
     // Build UI
@@ -153,6 +145,7 @@ export class NotesCanvas {
         creatingDragArea: this.state.creatingDragArea,
         editingShapeId: this.state.editingText?.shapeId ?? null,
         imageCache: this._imageCache,
+        theme: this.state.theme,
       });
       this._rafId = requestAnimationFrame(loop);
     };

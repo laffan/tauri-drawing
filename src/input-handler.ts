@@ -5,7 +5,11 @@ import {
 } from "./external-content";
 import { screenToCanvas } from "./utils";
 
-export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState): () => void {
+export interface InputOptions {
+  onShelfDrop?: (index: number, x: number, y: number) => void;
+}
+
+export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, opts?: InputOptions): () => void {
   const cleanups: (() => void)[] = [];
 
   function on<K extends keyof HTMLElementEventMap>(
@@ -120,20 +124,28 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
     if (text && text.trim()) state.addTextShapeAtCenter(text);
   }) as unknown as (e: HTMLElementEventMap["paste"]) => void);
 
-  // Drag/drop (skip shelf-item drags — those are handled by notes-canvas.ts)
+  // Drag/drop — single unified handler for shelf items, files, and text
   on(document as unknown as HTMLElement, "dragover", ((e: DragEvent) => {
-    if (e.dataTransfer?.types.includes("application/x-shelf-index")) return;
     e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-  }) as unknown as (e: HTMLElementEventMap["dragover"]) => void, { capture: true });
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = e.dataTransfer.types.includes("application/x-shelf-index") ? "move" : "copy";
+    }
+  }) as unknown as (e: HTMLElementEventMap["dragover"]) => void);
 
   on(document as unknown as HTMLElement, "drop", (async (e: DragEvent) => {
-    if (e.dataTransfer?.types.includes("application/x-shelf-index")) return;
     e.preventDefault();
     if (!e.dataTransfer) return;
     const rect = canvas.getBoundingClientRect();
     const dropPos = screenToCanvas({ x: e.clientX - rect.left, y: e.clientY - rect.top }, state.camera);
 
+    // Shelf item drag-to-restore
+    const shelfIdx = e.dataTransfer.getData("application/x-shelf-index");
+    if (shelfIdx !== "") {
+      opts?.onShelfDrop?.(parseInt(shelfIdx, 10), dropPos.x, dropPos.y);
+      return;
+    }
+
+    // File drops (images, text)
     const files = Array.from(e.dataTransfer.files);
     let handledFile = false;
     for (const file of files) {
@@ -152,7 +164,7 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState):
 
     const text = await extractDroppedText(e.dataTransfer);
     if (text && text.trim()) state.addTextShapeAtPosition(text, dropPos);
-  }) as unknown as (e: HTMLElementEventMap["drop"]) => void, { capture: true });
+  }) as unknown as (e: HTMLElementEventMap["drop"]) => void);
 
   return () => { for (const fn of cleanups) fn(); };
 }

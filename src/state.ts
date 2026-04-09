@@ -8,6 +8,8 @@ import {
   getShapeBounds, hitTestShape, pointInBounds, screenToCanvas,
 } from "./utils";
 import { UndoManager } from "./undo-manager";
+import type { AppearanceMode, CanvasTheme } from "./themes";
+import { THEMES, getEffectiveVariant } from "./themes";
 
 export interface EditingText {
   shapeId: string | null;
@@ -23,7 +25,7 @@ const HANDLE_SIZE = 8;
 
 type StateKey = "shapes" | "selectedIds" | "tool" | "color"
   | "fontSize" | "camera" | "selectionBox" | "editingText"
-  | "bookmarks" | "brainstormMode" | "creatingDragArea";
+  | "bookmarks" | "brainstormMode" | "creatingDragArea" | "theme";
 
 export class DrawingState extends EventTarget {
   shapes: Shape[] = [];
@@ -41,6 +43,22 @@ export class DrawingState extends EventTarget {
   canvasEl: HTMLCanvasElement | null = null;
   /** When true, left-click pans (set by space bar hold). */
   isPanning = false;
+
+  // Appearance
+  appearanceMode: AppearanceMode = "light";
+  themeId = "default";
+
+  get theme(): CanvasTheme {
+    const variant = getEffectiveVariant(this.appearanceMode);
+    const t = THEMES[this.themeId];
+    if (t && t.variant === variant) return t;
+    // Fallback: pick first theme that matches the requested variant
+    const fallback = Object.values(THEMES).find((th) => th.variant === variant);
+    return fallback || THEMES["default"];
+  }
+
+  setTheme(id: string) { this.themeId = id; this.notify("theme"); }
+  setAppearance(mode: AppearanceMode) { this.appearanceMode = mode; this.notify("theme"); }
 
   // Undo/redo
   private _undo = new UndoManager();

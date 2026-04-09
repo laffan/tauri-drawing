@@ -1,4 +1,6 @@
 import type { DrawingState } from "../state";
+import type { AppearanceMode } from "../themes";
+import { THEMES, THEME_IDS } from "../themes";
 import { h, clearChildren } from "./dom-helpers";
 
 export function createSettingsPanel(state: DrawingState): HTMLElement {
@@ -7,7 +9,7 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
   let isOpen = false;
 
   const toggleBtn = h("button", {
-    text: "\u2699",
+    text: "\u2699\ufe0f",
     title: "Settings",
     style: {
       padding: "6px 10px", border: "none", borderRadius: "8px",
@@ -33,7 +35,7 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
   const modal = h("div", {
     style: {
       background: "#fff", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-      width: "400px", maxHeight: "80vh", overflow: "auto", padding: "0",
+      width: "440px", maxHeight: "80vh", overflow: "auto", padding: "0",
     },
   });
   overlay.appendChild(modal);
@@ -55,6 +57,55 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
       onClick: () => { isOpen = false; rebuild(); },
     }));
     modal.appendChild(header);
+
+    // Appearance mode
+    const appearSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });
+    appearSection.appendChild(h("div", { text: "Appearance", style: { fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "8px" } }));
+    const modeRow = h("div", { style: { display: "flex", gap: "6px" } });
+    const modes: { label: string; value: AppearanceMode }[] = [
+      { label: "Light", value: "light" },
+      { label: "Dark", value: "dark" },
+      { label: "Auto", value: "auto" },
+    ];
+    for (const mode of modes) {
+      const active = state.appearanceMode === mode.value;
+      modeRow.appendChild(h("button", {
+        text: mode.label,
+        style: {
+          padding: "5px 14px", border: "1px solid " + (active ? "#4285f4" : "#ddd"), borderRadius: "6px",
+          background: active ? "#4285f4" : "#fff", color: active ? "#fff" : "#555",
+          cursor: "pointer", fontSize: "12px", fontWeight: active ? "600" : "400",
+        },
+        onClick: () => { state.setAppearance(mode.value); rebuild(); },
+      }));
+    }
+    appearSection.appendChild(modeRow);
+    modal.appendChild(appearSection);
+
+    // Theme
+    const themeSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });
+    themeSection.appendChild(h("div", { text: "Theme", style: { fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "8px" } }));
+    const grid = h("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px" } });
+    for (const id of THEME_IDS) {
+      const t = THEMES[id];
+      const active = state.themeId === id;
+      const swatch = h("button", {
+        style: {
+          padding: "6px 4px", border: active ? "2px solid " + t.accent : "1px solid #ddd",
+          borderRadius: "6px", background: t.canvasBackground, cursor: "pointer",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+        },
+        onClick: () => { state.setTheme(id); rebuild(); },
+      });
+      swatch.appendChild(h("div", { style: { display: "flex", gap: "2px" } , children: [
+        h("div", { style: { width: "8px", height: "8px", borderRadius: "50%", background: t.foreground } }),
+        h("div", { style: { width: "8px", height: "8px", borderRadius: "50%", background: t.accent } }),
+      ]}));
+      swatch.appendChild(h("span", { text: t.name, style: { fontSize: "9px", color: t.foreground, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "80px" } }));
+      grid.appendChild(swatch);
+    }
+    themeSection.appendChild(grid);
+    modal.appendChild(themeSection);
 
     // Font size setting
     const fontSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });

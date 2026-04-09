@@ -7,9 +7,6 @@ interface ToolDef { icon: string; label: string; tool: Tool | "brainstorm"; shor
 const TOOLS: ToolDef[] = [
   { icon: "👆", label: "Select", tool: "select", shortcut: "1" },
   { icon: "T", label: "Text", tool: "text", shortcut: "T" },
-];
-
-const EXTRA_TOOLS: ToolDef[] = [
   { icon: "⬜", label: "Drag Area", tool: "drag-area", shortcut: "A" },
   { icon: "💡", label: "Brainstorm", tool: "brainstorm", shortcut: "B" },
 ];
@@ -39,10 +36,9 @@ export function createToolbar(state: DrawingState): HTMLElement {
     return btn;
   }
 
-  const divider = h("div", { style: { width: "1px", height: "28px", background: "#dee2e6", margin: "0 2px" } });
   const spacer = h("div", { style: { flex: "1" } });
   const resetBtn = h("button", {
-    title: "Reset view", text: "⌂",
+    title: "Reset view", text: "\u267b\ufe0f",
     style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px", background: "rgba(255,255,255,0.9)" },
     onClick: () => { state.camera = { x: 0, y: 0, zoom: 1 }; state.notify("camera"); },
   });
@@ -57,8 +53,6 @@ export function createToolbar(state: DrawingState): HTMLElement {
     },
     children: [
       ...TOOLS.map(makeBtn),
-      divider,
-      ...EXTRA_TOOLS.map(makeBtn),
       spacer,
       resetBtn,
     ],

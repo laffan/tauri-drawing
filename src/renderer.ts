@@ -1,5 +1,6 @@
 import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
 import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
+import type { CanvasTheme } from "./themes";
 import { getShapeBounds } from "./utils";
 import { parseText } from "./markdown";
 
@@ -11,6 +12,7 @@ export interface RenderState {
   creatingDragArea: { start: Point; end: Point } | null;
   editingShapeId: string | null;
   imageCache: Map<string, HTMLImageElement>;
+  theme: CanvasTheme;
 }
 
 export function render(canvas: HTMLCanvasElement, state: RenderState): void {
@@ -25,15 +27,15 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     canvas.height = h * dpr;
   }
 
-  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache } = state;
+  const { camera, shapes, selectedIds, selectionBox, creatingDragArea, editingShapeId, imageCache, theme } = state;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  ctx.fillStyle = "#f4f5f7";
+  ctx.fillStyle = theme.canvasBackground;
   ctx.fillRect(0, 0, w, h);
 
-  drawGrid(ctx, camera, w, h);
+  drawGrid(ctx, camera, w, h, theme.gridColor);
 
   ctx.save();
   ctx.translate(camera.x, camera.y);
@@ -257,12 +259,12 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, box: SelectionBox, came
   ctx.restore();
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number) {
+function drawGrid(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number, gridColor: string) {
   const gridSize = 25;
   const scaledSize = gridSize * camera.zoom;
   if (scaledSize < 8) return;
   ctx.save();
-  ctx.strokeStyle = "#e2e5e9";
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   const offsetX = camera.x % scaledSize;
   const offsetY = camera.y % scaledSize;
