@@ -1,6 +1,6 @@
 import type { DrawingState } from "./state";
 import {
-  extractDroppedText, extractTextFromDataTransfer,
+  cleanLineBreaks, extractDroppedText, extractTextFromDataTransfer,
   fileToDataUrl, getImageDimensions, isImageFile, isTextFile,
 } from "./external-content";
 import { screenToCanvas } from "./utils";
@@ -25,6 +25,44 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, 
   on(canvas, "pointerup", (e) => state.handlePointerUp(e));
   on(canvas, "dblclick", (e) => state.handleDoubleClick(e));
   on(canvas, "wheel", (e) => state.handleWheel(e), { passive: false });
+
+  // Two-finger touch to pan (like Space+drag)
+  let twoFingerPanning = false;
+  let twoFingerStart = { x: 0, y: 0 };
+  let cameraAtTwoFingerStart = { x: 0, y: 0, zoom: 1 };
+
+  on(canvas, "touchstart", (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      twoFingerPanning = true;
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      twoFingerStart = { x: midX, y: midY };
+      cameraAtTwoFingerStart = { ...state.camera };
+    }
+  }, { passive: false });
+
+  on(canvas, "touchmove", (e) => {
+    if (twoFingerPanning && e.touches.length === 2) {
+      e.preventDefault();
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const dx = midX - twoFingerStart.x;
+      const dy = midY - twoFingerStart.y;
+      state.camera = {
+        x: cameraAtTwoFingerStart.x + dx,
+        y: cameraAtTwoFingerStart.y + dy,
+        zoom: cameraAtTwoFingerStart.zoom,
+      };
+      state.notify("camera");
+    }
+  }, { passive: false });
+
+  on(canvas, "touchend", (e) => {
+    if (twoFingerPanning && e.touches.length < 2) {
+      twoFingerPanning = false;
+    }
+  });
 
   // Space-to-pan state
   let spaceDown = false;
@@ -121,7 +159,7 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, 
       }
     }
     const text = extractTextFromDataTransfer(cd);
-    if (text && text.trim()) state.addTextShapeAtCenter(text);
+    if (text && text.trim()) state.addTextShapeAtCenter(cleanLineBreaks(text));
   }) as unknown as (e: HTMLElementEventMap["paste"]) => void);
 
   // Drag/drop — capture phase so preventDefault() runs before the browser
@@ -158,14 +196,14 @@ export function bindInputEvents(canvas: HTMLCanvasElement, state: DrawingState, 
         handledFile = true;
       } else if (isTextFile(file)) {
         const text = await file.text();
-        if (text.trim()) state.addTextShapeAtPosition(text, dropPos);
+        if (text.trim()) state.addTextShapeAtPosition(cleanLineBreaks(text), dropPos);
         handledFile = true;
       }
     }
     if (handledFile) return;
 
     const text = await extractDroppedText(e.dataTransfer);
-    if (text && text.trim()) state.addTextShapeAtPosition(text, dropPos);
+    if (text && text.trim()) state.addTextShapeAtPosition(cleanLineBreaks(text), dropPos);
   }) as unknown as (e: HTMLElementEventMap["drop"]) => void, { capture: true });
 
   return () => { for (const fn of cleanups) fn(); };

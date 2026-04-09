@@ -37,6 +37,19 @@ export function createToolbar(state: DrawingState): HTMLElement {
   }
 
   const spacer = h("div", { style: { flex: "1" } });
+
+  // Undo/redo buttons (useful on touch devices without keyboards)
+  const undoBtn = h("button", {
+    title: "Undo (Cmd+Z)", text: "\u21A9",
+    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "16px", background: "rgba(255,255,255,0.9)", opacity: "0.4" },
+    onClick: () => state.undo(),
+  });
+  const redoBtn = h("button", {
+    title: "Redo (Cmd+Shift+Z)", text: "\u21AA",
+    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "16px", background: "rgba(255,255,255,0.9)", opacity: "0.4" },
+    onClick: () => state.redo(),
+  });
+
   const resetBtn = h("button", {
     title: "Reset view", text: "\u267b\ufe0f",
     style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px", background: "rgba(255,255,255,0.9)" },
@@ -54,6 +67,8 @@ export function createToolbar(state: DrawingState): HTMLElement {
     children: [
       ...TOOLS.map(makeBtn),
       spacer,
+      undoBtn,
+      redoBtn,
       resetBtn,
     ],
   });
@@ -66,6 +81,8 @@ export function createToolbar(state: DrawingState): HTMLElement {
       btn.style.fontWeight = active ? "600" : "400";
       btn.style.boxShadow = active ? "0 2px 8px rgba(66,133,244,0.3)" : "0 1px 3px rgba(0,0,0,0.1)";
     }
+    undoBtn.style.opacity = state.canUndo ? "1" : "0.4";
+    redoBtn.style.opacity = state.canRedo ? "1" : "0.4";
   }
 
   state.addEventListener("change", update);

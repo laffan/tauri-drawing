@@ -1,6 +1,6 @@
 import { LINE_HEIGHT_RATIO, FONT_FAMILY, COLOR_PALETTE } from "./types";
 import type { Bounds, Camera, DragAreaShape, Point, Shape } from "./types";
-import { parseLine } from "./markdown";
+import { parseText } from "./markdown";
 
 let nextId = 0;
 export function generateId(): string {
@@ -82,47 +82,40 @@ export function getTextBounds(
   text: string,
   fontSize: number,
   constraintWidth?: number,
+  fontFamily?: string,
 ): Bounds {
   const baseLineHeight = fontSize * LINE_HEIGHT_RATIO;
   const descenderPad = fontSize * 0.25;
+  const ff = fontFamily ? fontFamily + ", " + FONT_FAMILY : FONT_FAMILY;
 
-  if (constraintWidth && constraintWidth > 0) {
-    // Measure each line accounting for heading scales and wrapping
-    let height = 0;
-    for (const rawLine of text.split("\n")) {
-      const parsed = parseLine(rawLine);
-      const lineFontSize = fontSize * parsed.sizeScale;
-      const lineH = lineFontSize * LINE_HEIGHT_RATIO;
-      const fullText = parsed.runs.map((r) => r.text).join("");
-      if (measureTextWidth(fullText, lineFontSize) > constraintWidth && fullText.includes(" ")) {
-        const wrapped = wrapTextMeasured(fullText, constraintWidth, lineFontSize);
-        height += wrapped.length * lineH;
-      } else {
-        height += lineH;
-      }
-    }
-    return {
-      minX: position.x,
-      minY: position.y,
-      maxX: position.x + constraintWidth,
-      maxY: position.y + Math.max(height + descenderPad, baseLineHeight + descenderPad),
-    };
-  }
+  const measure = (t: string, fs: number): number => {
+    const ctx = getMeasureCtx();
+    ctx.font = `${fs}px ${ff}`;
+    return ctx.measureText(t).width;
+  };
 
-  // Auto-size: measure each line accounting for heading scales
+  // Use parseText (same as renderer) so line counts match exactly
+  const parsedLines = parseText(
+    text,
+    constraintWidth && constraintWidth > 0 ? constraintWidth : undefined,
+    fontSize,
+    measure,
+  );
+
   let height = 0;
   let maxWidth = 0;
-  for (const rawLine of text.split("\n")) {
-    const parsed = parseLine(rawLine);
-    const lineFontSize = fontSize * parsed.sizeScale;
+  for (const line of parsedLines) {
+    const lineFontSize = fontSize * line.sizeScale;
     height += lineFontSize * LINE_HEIGHT_RATIO;
-    const lineText = parsed.runs.map((r) => r.text).join("");
-    maxWidth = Math.max(maxWidth, measureTextWidth(lineText, lineFontSize));
+    const lineText = line.runs.map((r) => r.text).join("");
+    maxWidth = Math.max(maxWidth, measure(lineText, lineFontSize));
   }
+
+  const w = constraintWidth && constraintWidth > 0 ? constraintWidth : Math.max(maxWidth, 20);
   return {
     minX: position.x,
     minY: position.y,
-    maxX: position.x + Math.max(maxWidth, 20),
+    maxX: position.x + w,
     maxY: position.y + Math.max(height + descenderPad, baseLineHeight + descenderPad),
   };
 }

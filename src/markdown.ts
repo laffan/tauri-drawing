@@ -10,6 +10,8 @@ export interface TextRun {
   sizeScale: number;
   /** If set, this run is a link */
   link?: string;
+  /** If true, render with highlight background (==text==) */
+  highlight?: boolean;
 }
 
 export interface ParsedLine {
@@ -41,7 +43,7 @@ export function parseLine(line: string): ParsedLine {
  */
 function parseInlineFormatting(text: string, sizeScale: number): TextRun[] {
   const runs: TextRun[] = [];
-  const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_|\[([^\]]+)\]\(([^)]+)\))/g;
+  const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_|\[([^\]]+)\]\(([^)]+)\)|==(.+?)==)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -58,6 +60,8 @@ function parseInlineFormatting(text: string, sizeScale: number): TextRun[] {
       runs.push({ text: match[4], bold: false, italic: true, sizeScale });
     } else if (match[5] !== undefined) {
       runs.push({ text: match[5], bold: false, italic: false, sizeScale, link: match[6] });
+    } else if (match[7] !== undefined) {
+      runs.push({ text: match[7], bold: false, italic: false, sizeScale, highlight: true });
     }
 
     lastIndex = match.index + match[0].length;
@@ -164,10 +168,10 @@ function tokensToRuns(tokens: { word: string; run: TextRun; trailingSpace: boole
     const t = tokens[i];
     const text = (i > 0 ? " " : "") + t.word;
     const last = result[result.length - 1];
-    if (last && last.bold === t.run.bold && last.italic === t.run.italic && last.link === t.run.link) {
+    if (last && last.bold === t.run.bold && last.italic === t.run.italic && last.link === t.run.link && last.highlight === t.run.highlight) {
       last.text += text;
     } else {
-      result.push({ text, bold: t.run.bold, italic: t.run.italic, sizeScale: t.run.sizeScale, link: t.run.link });
+      result.push({ text, bold: t.run.bold, italic: t.run.italic, sizeScale: t.run.sizeScale, link: t.run.link, highlight: t.run.highlight });
     }
   }
   return result;

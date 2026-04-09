@@ -66,6 +66,10 @@ export function createBrainstormInput(state: DrawingState): HTMLElement {
     container.style.display = "none";
     visible = false;
     input.value = "";
+    state.brainstormMode = false;
+    state.tool = "select";
+    state.notify("brainstormMode");
+    state.notify("tool");
   }
 
   function updatePosition() {

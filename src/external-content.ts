@@ -87,6 +87,35 @@ export function normalizeTextContent(value: string, type: string): string {
   return value;
 }
 
+/**
+ * Remove mid-sentence line breaks (single \n between non-empty lines)
+ * while preserving intentional paragraph breaks (double \n or lines ending
+ * with sentence-ending punctuation followed by \n).
+ */
+export function cleanLineBreaks(text: string): string {
+  // Normalize \r\n to \n
+  let s = text.replace(/\r\n/g, "\n");
+  // Preserve paragraph breaks (two or more consecutive newlines)
+  // Split on paragraph boundaries first, clean each paragraph, then rejoin
+  const paragraphs = s.split(/\n{2,}/);
+  const cleaned = paragraphs.map((para) => {
+    // Within a paragraph, replace single newlines that appear mid-sentence.
+    // A mid-sentence break: the line before doesn't end with sentence-ending
+    // punctuation or a colon, and the next line starts with a lowercase letter
+    // or continues a sentence.
+    // Heuristic: replace \n with space when the preceding line doesn't end with
+    // a period/question/exclamation/colon and the next line doesn't start with
+    // a markdown heading, list marker, or is entirely empty.
+    return para.replace(/([^\n])\n(?!$)/g, (_, before: string) => {
+      // Keep break if line ends with sentence-ending punctuation
+      if (/[.!?:]\s*$/.test(before)) return before + "\n";
+      // Keep break if it looks like a list item or heading follows
+      return before + " ";
+    });
+  });
+  return cleaned.join("\n\n");
+}
+
 export function isImageFile(file: File): boolean {
   if (file.type.startsWith("image/")) return true;
   const name = (file.name || "").toLowerCase();

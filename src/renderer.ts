@@ -205,6 +205,14 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: C
       const style = run.italic ? "italic" : "normal";
       const fontSize = baseFontSize * run.sizeScale;
       ctx.font = `${style} ${weight} ${fontSize}px ${ff}`;
+      if (run.highlight) {
+        ctx.save();
+        ctx.fillStyle = theme.accent;
+        ctx.globalAlpha = 0.25;
+        ctx.fillRect(x, y, ctx.measureText(run.text).width, fontSize + 2);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
       if (run.link) ctx.fillStyle = theme.accent;
       else ctx.fillStyle = isHeading ? headingColor : textColor;
       ctx.fillText(run.text, x, y);
