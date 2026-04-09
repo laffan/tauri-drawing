@@ -72,12 +72,19 @@ function guessExtension(dataUrl: string): string {
 }
 
 function downloadBlob(blob: Blob, filename: string) {
+  // Try blob URL first (works in standard browsers)
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  // Fallback: if the click didn't trigger a download (Tauri webview),
+  // convert to data URL and try again
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 500);
 }

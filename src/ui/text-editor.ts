@@ -72,7 +72,8 @@ export function createTextEditor(state: DrawingState): HTMLElement {
       left: screenPos.x + "px",
       top: screenPos.y + "px",
       color: resolvedColor,
-      caretColor: resolvedColor,
+      // Hide native caret when showing custom blinking border; show it once typing
+      caretColor: isEmpty ? "transparent" : resolvedColor,
       minHeight: (scaledLineHeight + 4) + "px",
       // Blinking left border as cursor indicator when empty
       borderLeft: isEmpty ? `2px solid ${resolvedColor}` : "none",
