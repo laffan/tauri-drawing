@@ -13,9 +13,11 @@ export interface RenderState {
   editingShapeId: string | null;
   imageCache: Map<string, HTMLImageElement>;
   theme: CanvasTheme;
+  croppingImageId: string | null;
   backgroundPattern: "grid" | "dot-grid" | "blank";
   gridSpacing: number;
   gridOpacity: number;
+  fontFamily: string;
 }
 
 export function render(canvas: HTMLCanvasElement, state: RenderState): void {
@@ -55,7 +57,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     if (shape.type === "drag-area") continue;
     if (shape.id === editingShapeId) continue;
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
-    else if (shape.type === "text") drawTextShape(ctx, shape, theme);
+    else if (shape.type === "text") drawTextShape(ctx, shape, theme, state.fontFamily);
     else if (shape.type === "image") drawImageShape(ctx, shape, imageCache);
   }
 
@@ -80,7 +82,13 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   if (selectedIds.size > 0) {
     for (const shape of shapes) {
-      if (selectedIds.has(shape.id)) drawSelectionHighlight(ctx, shape, camera.zoom, theme.accent);
+      if (selectedIds.has(shape.id)) {
+        if (shape.id === state.croppingImageId && shape.type === "image") {
+          drawCropOverlay(ctx, shape, camera.zoom);
+        } else {
+          drawSelectionHighlight(ctx, shape, camera.zoom, theme.accent);
+        }
+      }
     }
   }
 
@@ -143,12 +151,13 @@ export function drawStroke(ctx: CanvasRenderingContext2D, points: Point[], color
   ctx.stroke();
 }
 
-function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: CanvasTheme) {
+function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: CanvasTheme, fontFamily: string) {
   const baseFontSize = shape.fontSize;
+  const ff = `${fontFamily}, ${FONT_FAMILY}`;
 
   // Measure function using the render context for accurate width
   const measure = (text: string, fontSize: number): number => {
-    ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+    ctx.font = `${fontSize}px ${ff}`;
     return ctx.measureText(text).width;
   };
 
@@ -195,7 +204,7 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: C
       const weight = run.bold ? "bold" : "normal";
       const style = run.italic ? "italic" : "normal";
       const fontSize = baseFontSize * run.sizeScale;
-      ctx.font = `${style} ${weight} ${fontSize}px ${FONT_FAMILY}`;
+      ctx.font = `${style} ${weight} ${fontSize}px ${ff}`;
       if (run.link) ctx.fillStyle = theme.accent;
       else ctx.fillStyle = isHeading ? headingColor : textColor;
       ctx.fillText(run.text, x, y);
@@ -219,7 +228,10 @@ function drawTextShape(ctx: CanvasRenderingContext2D, shape: TextShape, theme: C
 function drawImageShape(ctx: CanvasRenderingContext2D, shape: ImageShape, imageCache: Map<string, HTMLImageElement>) {
   const img = imageCache.get(shape.id);
   if (img && img.complete) {
-    ctx.drawImage(img, shape.position.x, shape.position.y, shape.width, shape.height);
+    const c = shape.crop || { x: 0, y: 0, w: 1, h: 1 };
+    const sx = c.x * img.naturalWidth, sy = c.y * img.naturalHeight;
+    const sw = c.w * img.naturalWidth, sh = c.h * img.naturalHeight;
+    ctx.drawImage(img, sx, sy, sw, sh, shape.position.x, shape.position.y, shape.width, shape.height);
   } else {
     ctx.save();
     ctx.fillStyle = "#e5e7eb";
@@ -280,6 +292,35 @@ function drawSelectionBox(ctx: CanvasRenderingContext2D, box: SelectionBox, came
   ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
   ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
   ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawCropOverlay(ctx: CanvasRenderingContext2D, shape: ImageShape, zoom: number) {
+  // Show red border and handles on the image bounds during crop mode
+  const pad = 2;
+  const x = shape.position.x - pad, y = shape.position.y - pad;
+  const w = shape.width + pad * 2, ht = shape.height + pad * 2;
+  ctx.save();
+  ctx.strokeStyle = "#ea4335";
+  ctx.lineWidth = 2 / zoom;
+  ctx.setLineDash([6 / zoom, 3 / zoom]);
+  ctx.strokeRect(x, y, w, ht);
+  ctx.setLineDash([]);
+  // Red corner handles
+  const handleSize = 8 / zoom;
+  const half = handleSize / 2;
+  const mx = x + w / 2, my = y + ht / 2;
+  const handles: [number, number][] = [
+    [x, y], [x + w, y], [x, y + ht], [x + w, y + ht],
+    [mx, y], [mx, y + ht], [x, my], [x + w, my],
+  ];
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "#ea4335";
+  ctx.lineWidth = 2 / zoom;
+  for (const [hx, hy] of handles) {
+    ctx.fillRect(hx - half, hy - half, handleSize, handleSize);
+    ctx.strokeRect(hx - half, hy - half, handleSize, handleSize);
+  }
   ctx.restore();
 }
 

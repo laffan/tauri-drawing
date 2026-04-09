@@ -123,12 +123,21 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     container.style.top = (topLeft.y - 44) + "px";
 
     const hasText = selected.some((s) => s.type === "text");
+    const hasImage = selected.some((s) => s.type === "image");
     const hasColorable = selected.some((s) => s.type === "text");
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
     const multiSelect = selected.length > 1;
 
     if (multiSelect) container.appendChild(makeIconBtn("\ud83d\udcd0", "Align left", () => state.alignSelected("left")));
     if (hasText) container.appendChild(makeIconBtn("\ud83d\udccb", "Move to shelf", onMoveToShelf));
+
+    if (hasImage && selected.length === 1) {
+      const isCropping = state.croppingImageId === selected[0].id;
+      container.appendChild(makeIconBtn("\u2702\ufe0f", isCropping ? "Finish crop" : "Crop image", () => {
+        if (isCropping) state.stopCropping();
+        else state.startCropping(selected[0].id);
+      }));
+    }
 
     if (hasColorable) {
       const wrapper = h("div", { style: { position: "relative" } });

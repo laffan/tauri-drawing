@@ -167,6 +167,28 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
     }
     modal.appendChild(bgSection);
 
+    // Font family
+    const ffSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });
+    ffSection.appendChild(h("div", { text: "Text Font", style: { fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "8px" } }));
+    const fontFamilies = [
+      "Inter", "Source Sans Pro", "Source Serif Pro", "Libre Franklin",
+      "Libre Baskerville", "Karla", "Lora", "Helvetica", "EB Garamond", "Fira Code",
+    ];
+    const ffSelect = document.createElement("select");
+    Object.assign(ffSelect.style, { width: "100%", padding: "6px 8px", border: "1px solid #ddd", borderRadius: "6px", fontSize: "13px", outline: "none", background: "#fff" });
+    for (const ff of fontFamilies) {
+      const opt = document.createElement("option");
+      opt.value = ff; opt.textContent = ff;
+      opt.style.fontFamily = ff;
+      if (state.fontFamily === ff) opt.selected = true;
+      ffSelect.appendChild(opt);
+    }
+    ffSelect.addEventListener("change", () => { state.fontFamily = ffSelect.value; state.notify("theme"); rebuild(); });
+    ffSection.appendChild(ffSelect);
+    // Preview
+    ffSection.appendChild(h("div", { text: "The quick brown fox jumps over the lazy dog.", style: { fontFamily: state.fontFamily, fontSize: "14px", color: "#666", marginTop: "8px", lineHeight: "1.4" } }));
+    modal.appendChild(ffSection);
+
     // Font size setting
     const fontSection = h("div", { style: { padding: "16px 20px", borderBottom: "1px solid #f1f3f5" } });
     fontSection.appendChild(h("div", { text: "Default Font Size", style: { fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "8px" } }));

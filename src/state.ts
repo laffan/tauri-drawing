@@ -2,7 +2,7 @@ import type {
   Camera, CameraBookmark, DragAreaShape, ImageShape,
   Point, SelectionBox, Shape, TextShape, Tool,
 } from "./types";
-import { COLOR_PALETTE, FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
+import { COLOR_PALETTE } from "./types";
 import {
   alignShapes, boundsOverlap, generateId,
   getShapeBounds, hitTestShape, pointInBounds, screenToCanvas,
@@ -10,7 +10,10 @@ import {
 import { UndoManager } from "./undo-manager";
 import type { AppearanceMode, CanvasTheme } from "./themes";
 import { THEMES, getEffectiveVariant } from "./themes";
-import { parseText } from "./markdown";
+import {
+  findShapeAtPoint, hitTestLink, normalizeBox, moveShape,
+  applyResize, applyCropResize,
+} from "./state-helpers";
 
 export interface EditingText {
   shapeId: string | null;
@@ -46,6 +49,8 @@ export class DrawingState extends EventTarget {
   canvasEl: HTMLCanvasElement | null = null;
   /** When true, left-click pans (set by space bar hold). */
   isPanning = false;
+  /** Shape ID currently being cropped, or null */
+  croppingImageId: string | null = null;
 
   // Appearance
   appearanceMode: AppearanceMode = "light";
@@ -53,6 +58,7 @@ export class DrawingState extends EventTarget {
   backgroundPattern: BackgroundPattern = "grid";
   gridSpacing = 25;
   gridOpacity = 0.15;
+  fontFamily = "Inter";
 
   get theme(): CanvasTheme {
     const variant = getEffectiveVariant(this.appearanceMode);
@@ -211,6 +217,17 @@ export class DrawingState extends EventTarget {
     const willEditText = this.tool === "text" && !this.brainstormMode;
     if (!willEditText) canvas.setPointerCapture(e.pointerId);
 
+    // Exit crop mode when clicking outside the cropping image (unless clicking its handles)
+    if (this.croppingImageId) {
+      const cropShape = this.shapes.find((s) => s.id === this.croppingImageId);
+      const handleHit = this.hitTestResizeHandles(canvasPt);
+      if (!handleHit || handleHit.shapeId !== this.croppingImageId) {
+        if (!cropShape || !hitTestShape(canvasPt, cropShape)) {
+          this.stopCropping();
+        }
+      }
+    }
+
     if (this.isPanning) {
       this._isPanningActive = true;
       this._panStart = { x: e.clientX, y: e.clientY };
@@ -355,7 +372,11 @@ export class DrawingState extends EventTarget {
       const handle = this._resizeHandle!;
       const origShape = this._resizeOrigShape;
       const orig = this._resizeOrigBounds;
-      this.shapes = this.shapes.map((s) => s.id !== origShape.id ? s : applyResize(origShape, handle, orig, dx, dy));
+      if (this.croppingImageId === origShape.id && origShape.type === "image") {
+        this.shapes = this.shapes.map((s) => s.id !== origShape.id ? s : applyCropResize(origShape, handle, orig, dx, dy));
+      } else {
+        this.shapes = this.shapes.map((s) => s.id !== origShape.id ? s : applyResize(origShape, handle, orig, dx, dy));
+      }
       this.notify("shapes");
       return;
     }
@@ -509,6 +530,31 @@ export class DrawingState extends EventTarget {
     this.notify("shapes");
   }
 
+  startCropping(shapeId: string) {
+    const shape = this.shapes.find((s) => s.id === shapeId);
+    if (!shape || shape.type !== "image") return;
+    // Initialize crop to full image if not set
+    if (!shape.crop) {
+      this.shapes = this.shapes.map((s) => s.id === shapeId ? { ...s, crop: { x: 0, y: 0, w: 1, h: 1 } } : s);
+      this.notify("shapes");
+    }
+    this.croppingImageId = shapeId;
+    this.notify("selectedIds"); // trigger UI refresh
+  }
+
+  stopCropping() {
+    if (this.croppingImageId) {
+      this.croppingImageId = null;
+      this.recordHistory();
+      this.notify("selectedIds");
+    }
+  }
+
+  applyCrop(shapeId: string, crop: { x: number; y: number; w: number; h: number }) {
+    this.shapes = this.shapes.map((s) => s.id === shapeId && s.type === "image" ? { ...s, crop } : s);
+    this.notify("shapes");
+  }
+
   changeSelectedFontSize(newSize: number) {
     this.shapes = this.shapes.map((s) => {
       if (!this.selectedIds.has(s.id) || s.type !== "text") return s;
@@ -594,103 +640,5 @@ export class DrawingState extends EventTarget {
     this.notify("shapes");
     this.notify("selectedIds");
     return texts;
-  }
-}
-
-// === Pure helpers ===
-
-function findShapeAtPoint(pt: Point, shapes: Shape[]): Shape | null {
-  for (let i = shapes.length - 1; i >= 0; i--) {
-    if (shapes[i].type === "drag-area") continue;
-    if (hitTestShape(pt, shapes[i])) return shapes[i];
-  }
-  for (let i = shapes.length - 1; i >= 0; i--) {
-    if (shapes[i].type === "drag-area" && hitTestShape(pt, shapes[i])) return shapes[i];
-  }
-  return null;
-}
-
-/** Hit-test a point against link runs in a text shape. Returns the URL or null. */
-function hitTestLink(pt: Point, shape: TextShape): string | null {
-  const fs = shape.fontSize;
-  const measure = (t: string, s: number) => {
-    const c = document.createElement("canvas").getContext("2d")!;
-    c.font = `${s}px ${FONT_FAMILY}`;
-    return c.measureText(t).width;
-  };
-  const lines = parseText(shape.text, shape.width && shape.width > 0 ? shape.width : undefined, fs, measure);
-  let y = shape.position.y;
-  for (const line of lines) {
-    const lfs = fs * line.sizeScale;
-    const lh = lfs * LINE_HEIGHT_RATIO;
-    let x = shape.position.x;
-    for (const run of line.runs) {
-      const w = measure(run.text, lfs);
-      if (run.link && pt.x >= x && pt.x <= x + w && pt.y >= y && pt.y <= y + lh) return run.link;
-      x += w;
-    }
-    y += lh;
-  }
-  return null;
-}
-
-function normalizeBox(box: SelectionBox) {
-  return { minX: Math.min(box.start.x, box.end.x), minY: Math.min(box.start.y, box.end.y), maxX: Math.max(box.start.x, box.end.x), maxY: Math.max(box.start.y, box.end.y) };
-}
-
-function moveShape(shape: Shape, dx: number, dy: number): Shape {
-  switch (shape.type) {
-    case "draw": return { ...shape, points: shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
-    case "text": case "image": case "drag-area":
-      return { ...shape, position: { x: shape.position.x + dx, y: shape.position.y + dy } };
-  }
-}
-
-function applyResize(origShape: Shape, handle: ResizeHandle, orig: { minX: number; minY: number; maxX: number; maxY: number }, dx: number, dy: number): Shape {
-  let minX = orig.minX, minY = orig.minY, maxX = orig.maxX, maxY = orig.maxY;
-  if (handle.includes("w")) minX += dx;
-  if (handle.includes("e")) maxX += dx;
-  if (handle.includes("n")) minY += dy;
-  if (handle.includes("s")) maxY += dy;
-  const MIN = 30;
-  if (maxX - minX < MIN) { if (handle.includes("w")) minX = maxX - MIN; else maxX = minX + MIN; }
-  if (maxY - minY < MIN) { if (handle.includes("n")) minY = maxY - MIN; else maxY = minY + MIN; }
-  const newW = maxX - minX, newH = maxY - minY;
-  switch (origShape.type) {
-    case "text": return { ...origShape, position: { x: minX, y: minY }, width: Math.max(MIN, newW) };
-    case "image": {
-      // Lock aspect ratio: compute new size from the dominant axis
-      const origW = orig.maxX - orig.minX;
-      const origH = orig.maxY - orig.minY;
-      const aspect = origW / (origH || 1);
-      if (handle === "n" || handle === "s") {
-        // Vertical-only handle: adjust width to match
-        const newW2 = newH * aspect;
-        const cx = (minX + maxX) / 2;
-        minX = cx - newW2 / 2;
-        maxX = cx + newW2 / 2;
-      } else if (handle === "e" || handle === "w") {
-        // Horizontal-only handle: adjust height to match
-        const newH2 = newW / aspect;
-        const cy = (minY + maxY) / 2;
-        minY = cy - newH2 / 2;
-        maxY = cy + newH2 / 2;
-      } else {
-        // Corner handle: use the larger delta to determine size
-        const scaleX = (maxX - minX) / origW;
-        const scaleY = (maxY - minY) / origH;
-        const scale = Math.max(scaleX, scaleY);
-        const finalW = origW * scale;
-        const finalH = origH * scale;
-        if (handle.includes("e")) maxX = minX + finalW; else minX = maxX - finalW;
-        if (handle.includes("s")) maxY = minY + finalH; else minY = maxY - finalH;
-      }
-      return { ...origShape, position: { x: minX, y: minY }, width: maxX - minX, height: maxY - minY };
-    }
-    case "drag-area": return { ...origShape, position: { x: minX, y: minY }, width: newW, height: newH };
-    case "draw": {
-      const ow = orig.maxX - orig.minX || 1, oh = orig.maxY - orig.minY || 1;
-      return { ...origShape, points: origShape.points.map((p) => ({ x: minX + ((p.x - orig.minX) / ow) * newW, y: minY + ((p.y - orig.minY) / oh) * newH })) };
-    }
   }
 }

@@ -148,6 +148,8 @@ export class NotesCanvas {
         editingShapeId: this.state.editingText?.shapeId ?? null,
         imageCache: this._imageCache,
         theme: this.state.theme,
+        croppingImageId: this.state.croppingImageId,
+        fontFamily: this.state.fontFamily,
         backgroundPattern: this.state.backgroundPattern,
         gridSpacing: this.state.gridSpacing,
         gridOpacity: this.state.gridOpacity,

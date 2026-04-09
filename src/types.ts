@@ -53,6 +53,11 @@ export interface TextShape extends ShapeBase {
   backgroundColor?: string;
 }
 
+export interface ImageCrop {
+  /** Crop region as fractions (0-1) of the full image */
+  x: number; y: number; w: number; h: number;
+}
+
 export interface ImageShape extends ShapeBase {
   type: "image";
   position: Point;
@@ -60,6 +65,7 @@ export interface ImageShape extends ShapeBase {
   height: number;
   dataUrl: string;
   name: string;
+  crop?: ImageCrop;
 }
 
 export interface DragAreaShape extends ShapeBase {

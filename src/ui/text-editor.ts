@@ -59,7 +59,7 @@ export function createTextEditor(state: DrawingState): HTMLElement {
     const screenPos = canvasToScreen(et.position, state.camera);
 
     const fontStyle = {
-      fontFamily: FONT_FAMILY,
+      fontFamily: `${state.fontFamily}, ${FONT_FAMILY}`,
       fontSize: scaledFontSize + "px",
       lineHeight: scaledLineHeight + "px",
     };
