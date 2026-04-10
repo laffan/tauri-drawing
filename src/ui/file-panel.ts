@@ -1,5 +1,6 @@
 import type { DrawingState } from "../state";
 import { saveNoteFile, openNoteFile } from "../file-io";
+import { supportsMultiWindow, openNewWindow } from "../window-manager";
 import { h } from "./dom-helpers";
 
 export function createFilePanel(state: DrawingState): HTMLElement {
@@ -46,6 +47,22 @@ export function createFilePanel(state: DrawingState): HTMLElement {
       }
     },
   }));
+
+  // New Window button (desktop only — WebviewWindow API unavailable on mobile)
+  if (supportsMultiWindow()) {
+    container.appendChild(h("button", {
+      text: "\u2795",
+      title: "New window",
+      style: { ...btnStyle },
+      onClick: async () => {
+        try {
+          await openNewWindow();
+        } catch (err) {
+          console.error("New window failed:", err);
+        }
+      },
+    }));
+  }
 
   // Prevent canvas interactions when clicking panel
   container.addEventListener("pointerdown", (e) => e.stopPropagation());
