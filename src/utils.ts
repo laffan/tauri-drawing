@@ -383,6 +383,7 @@ export interface PinnedEntry {
   shapes: Shape[];
   offsetX: number;
   offsetY: number;
+  scale: number;
   screenBounds: Bounds;
 }
 
@@ -433,6 +434,7 @@ export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): Pi
   const MARGIN_LEFT = 20;
   const MARGIN_TOP = 60;
   const GAP = 24;
+  const THUMB_MAX = 120;
   let y = MARGIN_TOP;
 
   const entries: PinnedEntry[] = [];
@@ -451,14 +453,21 @@ export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): Pi
     const width = gMaxX - gMinX;
     const height = gMaxY - gMinY;
 
+    // Thumbnail scale for solo pinned images that aren't expanded
+    const isImageThumb = group.length === 1 && group[0].type === "image" && !group[0].pinnedExpanded;
+    const scale = isImageThumb ? Math.min(1, THUMB_MAX / Math.max(width, height)) : 1;
+    const sw = width * scale;
+    const sh = height * scale;
+
     entries.push({
       shapes: group,
-      offsetX: MARGIN_LEFT - gMinX,
-      offsetY: y - gMinY,
-      screenBounds: { minX: MARGIN_LEFT, minY: y, maxX: MARGIN_LEFT + width, maxY: y + height },
+      offsetX: MARGIN_LEFT - gMinX * scale,
+      offsetY: y - gMinY * scale,
+      scale,
+      screenBounds: { minX: MARGIN_LEFT, minY: y, maxX: MARGIN_LEFT + sw, maxY: y + sh },
     });
 
-    y += height + GAP;
+    y += sh + GAP;
   }
 
   return { entries, pinnedIds };

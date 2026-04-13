@@ -383,9 +383,10 @@ function drawPinnedEntries(
     ctx.fillText("\uD83D\uDCCD", b.minX - 2, b.minY - pad - 2);
     ctx.restore();
 
-    // Draw shapes with offset transform
+    // Draw shapes with offset + scale transform
     ctx.save();
     ctx.translate(entry.offsetX, entry.offsetY);
+    if (entry.scale !== 1) ctx.scale(entry.scale, entry.scale);
     for (const shape of entry.shapes) {
       if (shape.type === "drag-area") drawDragArea(ctx, shape);
     }
@@ -398,7 +399,7 @@ function drawPinnedEntries(
     // Selection highlights for pinned shapes
     for (const shape of entry.shapes) {
       if (selectedIds.has(shape.id)) {
-        drawSelectionHighlight(ctx, shape, 1, theme.accent);
+        drawSelectionHighlight(ctx, shape, 1 / entry.scale, theme.accent);
       }
     }
     ctx.restore();

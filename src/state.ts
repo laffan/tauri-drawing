@@ -275,6 +275,14 @@ export class DrawingState extends EventTarget {
       // Check pinned shapes first (screen-space hit test)
       const pinnedHit = findPinnedShapeAtScreen(screenPt, this.shapes, this.fontFamily);
       if (pinnedHit) {
+        // Toggle thumbnail for pinned images on click
+        if (!e.shiftKey && pinnedHit.length === 1) {
+          const hit = this.shapes.find((s) => s.id === pinnedHit[0]);
+          if (hit?.type === "image" && hit.pinned) {
+            this.shapes = this.shapes.map((s) => s.id === hit.id ? { ...s, pinnedExpanded: !s.pinnedExpanded || undefined } : s);
+            this.notify("shapes");
+          }
+        }
         const next = e.shiftKey ? new Set(this.selectedIds) : new Set<string>();
         const allSel = e.shiftKey && pinnedHit.every((id) => next.has(id));
         pinnedHit.forEach((id) => allSel ? next.delete(id) : next.add(id));
@@ -574,21 +582,19 @@ export class DrawingState extends EventTarget {
   startCropping(shapeId: string) {
     const shape = this.shapes.find((s) => s.id === shapeId);
     if (!shape || shape.type !== "image") return;
-    // Initialize crop to full image if not set
     if (!shape.crop) {
       this.shapes = this.shapes.map((s) => s.id === shapeId ? { ...s, crop: { x: 0, y: 0, w: 1, h: 1 } } : s);
       this.notify("shapes");
     }
     this.croppingImageId = shapeId;
-    this.notify("selectedIds"); // trigger UI refresh
+    this.notify("selectedIds");
   }
 
   stopCropping() {
-    if (this.croppingImageId) {
-      this.croppingImageId = null;
-      this.recordHistory();
-      this.notify("selectedIds");
-    }
+    if (!this.croppingImageId) return;
+    this.croppingImageId = null;
+    this.recordHistory();
+    this.notify("selectedIds");
   }
 
   applyCrop(shapeId: string, crop: { x: number; y: number; w: number; h: number }) {
@@ -611,7 +617,7 @@ export class DrawingState extends EventTarget {
       ids.add(s.id);
       if (s.groupId) this.shapes.forEach((gs) => { if (gs.groupId === s.groupId) ids.add(gs.id); });
     }
-    this.shapes = this.shapes.map((s) => ids.has(s.id) ? { ...s, pinned: pin } : s);
+    this.shapes = this.shapes.map((s) => ids.has(s.id) ? { ...s, pinned: pin, pinnedExpanded: undefined } : s);
     this.recordHistory();
     this.notify("shapes");
   }
@@ -637,17 +643,13 @@ export class DrawingState extends EventTarget {
   }
 
   // === Bookmarks ===
-  addBookmark(name: string) {
-    this.bookmarks = [...this.bookmarks, { id: generateId(), name, camera: { ...this.camera } }];
-    this.notify("bookmarks");
-  }
+  addBookmark(name: string) { this.bookmarks = [...this.bookmarks, { id: generateId(), name, camera: { ...this.camera } }]; this.notify("bookmarks"); }
   goToBookmark(bm: CameraBookmark) { this.camera = { ...bm.camera }; this.notify("camera"); }
   deleteBookmark(id: string) { this.bookmarks = this.bookmarks.filter((b) => b.id !== id); this.notify("bookmarks"); }
 
   // === External content ===
   addImageShape(dataUrl: string, name: string, w: number, h: number, position?: Point) {
-    const maxSize = 400;
-    const aspect = w / Math.max(h, 1);
+    const maxSize = 400, aspect = w / Math.max(h, 1);
     let dw: number, dh: number;
     if (w >= h) { dw = Math.min(maxSize, w); dh = dw / aspect; }
     else { dh = Math.min(maxSize, h); dw = dh * aspect; }

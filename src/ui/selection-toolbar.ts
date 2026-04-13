@@ -173,7 +173,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const hasImage = selected.some((s) => s.type === "image");
     const hasColorable = selected.some((s) => s.type === "text");
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
-    const hasPinnable = selected.some((s) => s.type === "text" || s.type === "drag-area");
+    const hasPinnable = selected.some((s) => s.type === "text" || s.type === "drag-area" || s.type === "image");
     const multiSelect = selected.length > 1;
 
     if (multiSelect) {
