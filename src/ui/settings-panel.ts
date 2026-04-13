@@ -4,7 +4,7 @@ import { THEMES, THEME_IDS } from "../themes";
 import { h, clearChildren } from "./dom-helpers";
 
 export function createSettingsPanel(state: DrawingState): HTMLElement {
-  const container = h("div", { style: { position: "absolute", top: "56px", left: "12px", zIndex: "200" } });
+  const container = h("div", { style: { position: "relative" } });
 
   let isOpen = false;
 

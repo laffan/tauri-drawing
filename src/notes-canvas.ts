@@ -11,6 +11,7 @@ import { createBrainstormInput } from "./ui/brainstorm-input";
 import { createStatusBar } from "./ui/status-bar";
 import { createSettingsPanel } from "./ui/settings-panel";
 import { createFilePanel } from "./ui/file-panel";
+import { h } from "./ui/dom-helpers";
 
 export class NotesCanvas {
   readonly container: HTMLElement;
@@ -99,9 +100,18 @@ export class NotesCanvas {
     container.appendChild(createTextEditor(this.state));
     container.appendChild(createBrainstormInput(this.state));
     container.appendChild(createToolbar(this.state));
-    container.appendChild(createBookmarksPanel(this.state));
-    container.appendChild(createSettingsPanel(this.state));
-    container.appendChild(createFilePanel(this.state));
+
+    // Top-center bar for bookmarks, settings, and file buttons
+    const topBar = h("div", {
+      style: {
+        position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)",
+        zIndex: "200", display: "flex", gap: "4px", pointerEvents: "auto",
+      },
+      children: [createBookmarksPanel(this.state), createSettingsPanel(this.state), createFilePanel(this.state)],
+    });
+    topBar.addEventListener("pointerdown", (e) => e.stopPropagation());
+    container.appendChild(topBar);
+
     this._shelfPanel = createShelfPanel(this.state, shelfCallbacks);
     container.appendChild(this._shelfPanel);
     container.appendChild(createStatusBar(this.state));

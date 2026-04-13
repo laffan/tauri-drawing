@@ -5,7 +5,7 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
   let isOpen = false;
   let adding = false;
 
-  const container = h("div", { style: { position: "absolute", top: "12px", left: "12px", zIndex: "200" } });
+  const container = h("div", { style: { position: "relative" } });
   const toggleBtn = h("button", {
     style: { padding: "6px 10px", border: "none", borderRadius: "8px", background: "rgba(255,255,255,0.9)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", gap: "4px", backdropFilter: "blur(8px)" },
     title: "Canvas bookmarks",
@@ -14,7 +14,7 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
   container.appendChild(toggleBtn);
 
   const dropdown = h("div", {
-    style: { marginTop: "4px", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", border: "1px solid #e5e7eb", width: "220px", overflow: "hidden", display: "none" },
+    style: { position: "absolute", top: "100%", left: "0", marginTop: "4px", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", border: "1px solid #e5e7eb", width: "220px", overflow: "hidden", display: "none", zIndex: "300" },
   });
   container.appendChild(dropdown);
 

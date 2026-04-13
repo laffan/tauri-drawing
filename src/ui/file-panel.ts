@@ -4,7 +4,7 @@ import { h } from "./dom-helpers";
 
 export function createFilePanel(state: DrawingState): HTMLElement {
   const container = h("div", {
-    style: { position: "absolute", top: "100px", left: "12px", zIndex: "200", display: "flex", flexDirection: "column", gap: "4px" },
+    style: { position: "relative", display: "flex", flexDirection: "row", gap: "4px" },
   });
 
   const btnStyle: Partial<CSSStyleDeclaration> = {
@@ -46,9 +46,6 @@ export function createFilePanel(state: DrawingState): HTMLElement {
       }
     },
   }));
-
-  // Prevent canvas interactions when clicking panel
-  container.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   return container;
 }
