@@ -5,17 +5,18 @@ import type {
 import { COLOR_PALETTE } from "./types";
 import {
   alignShapes, boundsOverlap, distributeShapes, generateId,
-  getShapeBounds, hitTestShape, measureTextWidth,
+  getShapeBounds, hitTestShape,
   pointInBounds, screenToCanvas,
 } from "./utils";
 import { UndoManager } from "./undo-manager";
 import type { AppearanceMode, CanvasTheme } from "./themes";
 import { THEMES, getEffectiveVariant } from "./themes";
 import {
-  findShapeAtPoint, hitTestLink, normalizeBox, moveShape,
+  autoFitWidth, findShapeAtPoint, findPinnedShapeAtScreen,
+  hitTestLink, normalizeBox, moveShape,
   applyResize, applyCropResize, openExternalUrl,
 } from "./state-helpers";
-import { parseLine } from "./markdown";
+import { computePinnedLayout } from "./utils";
 
 export interface EditingText {
   shapeId: string | null;
@@ -271,7 +272,18 @@ export class DrawingState extends EventTarget {
         return;
       }
 
-      const hitShape = findShapeAtPoint(canvasPt, this.shapes);
+      // Check pinned shapes first (screen-space hit test)
+      const pinnedHit = findPinnedShapeAtScreen(screenPt, this.shapes, this.fontFamily);
+      if (pinnedHit) {
+        const next = e.shiftKey ? new Set(this.selectedIds) : new Set<string>();
+        const allSel = e.shiftKey && pinnedHit.every((id) => next.has(id));
+        pinnedHit.forEach((id) => allSel ? next.delete(id) : next.add(id));
+        this.selectedIds = next;
+        this.notify("selectedIds");
+        return;
+      }
+      const { pinnedIds } = computePinnedLayout(this.shapes, this.fontFamily);
+      const hitShape = findShapeAtPoint(canvasPt, this.shapes.filter((s) => !pinnedIds.has(s.id)));
 
       // Cmd+click on a link: open in browser/app
       if (hitShape && hitShape.type === "text" && (e.metaKey || e.ctrlKey)) {
@@ -585,10 +597,21 @@ export class DrawingState extends EventTarget {
   }
 
   changeSelectedFontSize(newSize: number) {
-    this.shapes = this.shapes.map((s) => {
-      if (!this.selectedIds.has(s.id) || s.type !== "text") return s;
-      return { ...s, fontSize: newSize };
-    });
+    this.shapes = this.shapes.map((s) =>
+      this.selectedIds.has(s.id) && s.type === "text" ? { ...s, fontSize: newSize } : s);
+    this.recordHistory();
+    this.notify("shapes");
+  }
+
+  toggleSelectedPinned() {
+    const selected = this.shapes.filter((s) => this.selectedIds.has(s.id));
+    const pin = !selected.some((s) => s.pinned) || undefined;
+    const ids = new Set<string>();
+    for (const s of selected) {
+      ids.add(s.id);
+      if (s.groupId) this.shapes.forEach((gs) => { if (gs.groupId === s.groupId) ids.add(gs.id); });
+    }
+    this.shapes = this.shapes.map((s) => ids.has(s.id) ? { ...s, pinned: pin } : s);
     this.recordHistory();
     this.notify("shapes");
   }
@@ -643,10 +666,7 @@ export class DrawingState extends EventTarget {
   }
 
   addTextShapeAtCenter(text: string) {
-    const pos = screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, this.camera);
-    this.shapes = [...this.shapes, { id: generateId(), type: "text", position: pos, text, fontSize: 18, color: "#000000", width: 350 } as TextShape];
-    this.recordHistory();
-    this.notify("shapes");
+    this.addTextShapeAtPosition(text, screenToCanvas({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, this.camera));
   }
 
   addTextShapeAtPosition(text: string, position: Point) {
@@ -667,13 +687,8 @@ export class DrawingState extends EventTarget {
   }
 
   moveSelectedToShelf(): string[] {
-    const texts: string[] = [];
-    const remaining: Shape[] = [];
-    for (const s of this.shapes) {
-      if (this.selectedIds.has(s.id) && s.type === "text") texts.push(s.text);
-      else remaining.push(s);
-    }
-    this.shapes = remaining;
+    const texts = this.shapes.filter((s) => this.selectedIds.has(s.id) && s.type === "text").map((s) => s.type === "text" ? s.text : "");
+    this.shapes = this.shapes.filter((s) => !(this.selectedIds.has(s.id) && s.type === "text"));
     this.selectedIds = new Set();
     this.recordHistory();
     this.notify("shapes");
@@ -681,16 +696,3 @@ export class DrawingState extends EventTarget {
     return texts;
   }
 }
-
-/** Measure widest rendered line (accounting for heading scale + font) and return fitted width. */
-function autoFitWidth(text: string, fontSize: number, constraintWidth: number | undefined, fontFamily: string): number {
-  const cw = constraintWidth || 350;
-  let maxW = 0;
-  for (const line of text.split("\n")) {
-    const parsed = parseLine(line);
-    const displayText = parsed.runs.map((r) => r.text).join("");
-    maxW = Math.max(maxW, measureTextWidth(displayText, fontSize * parsed.sizeScale, fontFamily));
-  }
-  return maxW < cw ? Math.max(30, maxW + 8) : cw;
-}
-

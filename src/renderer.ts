@@ -1,7 +1,8 @@
 import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
 import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import type { CanvasTheme } from "./themes";
-import { getShapeBounds } from "./utils";
+import { computePinnedLayout, getShapeBounds } from "./utils";
+import type { PinnedEntry } from "./utils";
 import { parseText } from "./markdown";
 
 export interface RenderState {
@@ -45,16 +46,21 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     drawBackground(ctx, camera, w, h, theme.foreground, backgroundPattern, gridSpacing, gridOpacity * 0.8);
   }
 
+  // Compute pinned layout once for this frame
+  const pinnedLayout = computePinnedLayout(shapes, state.fontFamily);
+  const pinnedIds = pinnedLayout.pinnedIds;
+
   ctx.save();
   ctx.translate(camera.x, camera.y);
   ctx.scale(camera.zoom, camera.zoom);
 
   for (const shape of shapes) {
-    if (shape.type === "drag-area") drawDragArea(ctx, shape);
+    if (shape.type === "drag-area" && !pinnedIds.has(shape.id)) drawDragArea(ctx, shape);
   }
 
   for (const shape of shapes) {
     if (shape.type === "drag-area") continue;
+    if (pinnedIds.has(shape.id)) continue;
     if (shape.id === editingShapeId) continue;
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
     else if (shape.type === "text") drawTextShape(ctx, shape, theme, state.fontFamily);
@@ -82,7 +88,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   if (selectedIds.size > 0) {
     for (const shape of shapes) {
-      if (selectedIds.has(shape.id)) {
+      if (selectedIds.has(shape.id) && !pinnedIds.has(shape.id)) {
         if (shape.id === state.croppingImageId && shape.type === "image") {
           drawCropOverlay(ctx, shape, camera.zoom);
         } else {
@@ -93,6 +99,11 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   }
 
   ctx.restore();
+
+  // Draw pinned shapes at fixed screen positions (outside camera transform)
+  if (pinnedLayout.entries.length > 0) {
+    drawPinnedEntries(ctx, pinnedLayout.entries, selectedIds, theme, state.fontFamily, imageCache);
+  }
 
   if (selectionBox) drawSelectionBox(ctx, selectionBox, camera);
 }
@@ -340,6 +351,58 @@ function drawCropOverlay(ctx: CanvasRenderingContext2D, shape: ImageShape, zoom:
     ctx.strokeRect(hx - half, hy - half, handleSize, handleSize);
   }
   ctx.restore();
+}
+
+function drawPinnedEntries(
+  ctx: CanvasRenderingContext2D, entries: PinnedEntry[], selectedIds: Set<string>,
+  theme: CanvasTheme, fontFamily: string, imageCache: Map<string, HTMLImageElement>,
+) {
+  for (const entry of entries) {
+    const b = entry.screenBounds;
+    const pad = 10;
+
+    // Card background
+    ctx.save();
+    ctx.fillStyle = theme.uiBackground;
+    ctx.shadowColor = "rgba(0,0,0,0.12)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 2;
+    ctx.beginPath();
+    roundRect(ctx, b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2, 8);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = theme.uiBorder;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    // Pin indicator
+    ctx.save();
+    ctx.font = "14px sans-serif";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("\uD83D\uDCCD", b.minX - 2, b.minY - pad - 2);
+    ctx.restore();
+
+    // Draw shapes with offset transform
+    ctx.save();
+    ctx.translate(entry.offsetX, entry.offsetY);
+    for (const shape of entry.shapes) {
+      if (shape.type === "drag-area") drawDragArea(ctx, shape);
+    }
+    for (const shape of entry.shapes) {
+      if (shape.type === "drag-area") continue;
+      if (shape.type === "text") drawTextShape(ctx, shape, theme, fontFamily);
+      else if (shape.type === "image") drawImageShape(ctx, shape, imageCache, false);
+      else if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
+    }
+    // Selection highlights for pinned shapes
+    for (const shape of entry.shapes) {
+      if (selectedIds.has(shape.id)) {
+        drawSelectionHighlight(ctx, shape, 1, theme.accent);
+      }
+    }
+    ctx.restore();
+  }
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, camera: Camera, w: number, h: number, color: string, pattern: "grid" | "dot-grid", spacing: number, opacity: number) {

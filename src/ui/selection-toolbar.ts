@@ -1,6 +1,6 @@
 import type { DrawingState } from "../state";
 import { COLOR_PALETTE, BACKGROUND_COLORS, TEXT_COLORS } from "../types";
-import { canvasToScreen, getShapeBounds } from "../utils";
+import { canvasToScreen, computePinnedLayout, getShapeBounds } from "../utils";
 import { h, clearChildren } from "./dom-helpers";
 
 export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () => void): HTMLElement {
@@ -131,24 +131,49 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const selected = state.shapes.filter((s) => state.selectedIds.has(s.id));
     if (selected.length === 0) { container.style.display = "none"; return; }
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const s of selected) {
-      const b = getShapeBounds(s);
-      if (b.minX < minX) minX = b.minX;
-      if (b.minY < minY) minY = b.minY;
-      if (b.maxX > maxX) maxX = b.maxX;
-      if (b.maxY > maxY) maxY = b.maxY;
+    // Check if selected shapes are pinned (use pinned screen bounds for positioning)
+    const pinnedLayout = computePinnedLayout(state.shapes, state.fontFamily);
+    const pinnedOffsets = new Map<string, { offsetX: number; offsetY: number }>();
+    for (const entry of pinnedLayout.entries) {
+      for (const s of entry.shapes) {
+        pinnedOffsets.set(s.id, { offsetX: entry.offsetX, offsetY: entry.offsetY });
+      }
     }
-    const topLeft = canvasToScreen({ x: minX, y: minY }, state.camera);
+    const allSelectedPinned = selected.every((s) => pinnedLayout.pinnedIds.has(s.id));
+
+    let screenMinX: number, screenMinY: number;
+    if (allSelectedPinned) {
+      // Position toolbar relative to pinned screen bounds
+      screenMinX = Infinity; screenMinY = Infinity;
+      for (const s of selected) {
+        const b = getShapeBounds(s);
+        const off = pinnedOffsets.get(s.id);
+        if (off) {
+          screenMinX = Math.min(screenMinX, b.minX + off.offsetX);
+          screenMinY = Math.min(screenMinY, b.minY + off.offsetY);
+        }
+      }
+    } else {
+      let minX = Infinity, minY = Infinity;
+      for (const s of selected) {
+        const b = getShapeBounds(s);
+        if (b.minX < minX) minX = b.minX;
+        if (b.minY < minY) minY = b.minY;
+      }
+      const topLeft = canvasToScreen({ x: minX, y: minY }, state.camera);
+      screenMinX = topLeft.x;
+      screenMinY = topLeft.y;
+    }
 
     container.style.display = "flex";
-    container.style.left = topLeft.x + "px";
-    container.style.top = (topLeft.y - 44) + "px";
+    container.style.left = screenMinX + "px";
+    container.style.top = (screenMinY - 44) + "px";
 
     const hasText = selected.some((s) => s.type === "text");
     const hasImage = selected.some((s) => s.type === "image");
     const hasColorable = selected.some((s) => s.type === "text");
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
+    const hasPinnable = selected.some((s) => s.type === "text" || s.type === "drag-area");
     const multiSelect = selected.length > 1;
 
     if (multiSelect) {
@@ -217,6 +242,11 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
           state.changeSelectedFontSize(size);
         }));
       }
+    }
+
+    if (hasPinnable) {
+      const anyPinned = selected.some((s) => s.pinned);
+      container.appendChild(makeIconBtn("\uD83D\uDCCD", anyPinned ? "Unpin" : "Pin to side", () => state.toggleSelectedPinned()));
     }
 
     container.appendChild(makeIconBtn("\ud83d\uddd1", "Delete", () => state.deleteSelected()));

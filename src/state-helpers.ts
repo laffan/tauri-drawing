@@ -11,8 +11,8 @@ export async function openExternalUrl(url: string) {
 }
 import type { ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
-import { hitTestShape } from "./utils";
-import { parseText } from "./markdown";
+import { computePinnedLayout, hitTestShape, measureTextWidth, pointInBounds } from "./utils";
+import { parseLine, parseText } from "./markdown";
 import type { ResizeHandle } from "./state";
 
 export function findShapeAtPoint(pt: Point, shapes: Shape[]): Shape | null {
@@ -127,4 +127,27 @@ export function applyCropResize(origShape: ImageShape, handle: ResizeHandle, ori
   const cropW = ((maxX - minX) / origW) * oldCrop.w;
   const cropH = ((maxY - minY) / origH) * oldCrop.h;
   return { ...origShape, position: { x: minX, y: minY }, width: maxX - minX, height: maxY - minY, crop: { x: cropX, y: cropY, w: cropW, h: cropH } };
+}
+
+/** Measure widest rendered line (accounting for heading scale + font) and return fitted width. */
+export function autoFitWidth(text: string, fontSize: number, constraintWidth: number | undefined, fontFamily: string): number {
+  const cw = constraintWidth || 350;
+  let maxW = 0;
+  for (const line of text.split("\n")) {
+    const parsed = parseLine(line);
+    const displayText = parsed.runs.map((r) => r.text).join("");
+    maxW = Math.max(maxW, measureTextWidth(displayText, fontSize * parsed.sizeScale, fontFamily));
+  }
+  return maxW < cw ? Math.max(30, maxW + 8) : cw;
+}
+
+/** Hit-test screen point against pinned shapes (rendered in screen space). Returns shape IDs if hit. */
+export function findPinnedShapeAtScreen(screenPt: Point, shapes: Shape[], fontFamily?: string): string[] | null {
+  const layout = computePinnedLayout(shapes, fontFamily);
+  for (const entry of layout.entries) {
+    if (pointInBounds(screenPt, entry.screenBounds, 6)) {
+      return entry.shapes.map((s) => s.id);
+    }
+  }
+  return null;
 }

@@ -376,3 +376,90 @@ function shiftShape(shape: Shape, dx: number, dy: number): Shape {
       };
   }
 }
+
+// === Pinning ===
+
+export interface PinnedEntry {
+  shapes: Shape[];
+  offsetX: number;
+  offsetY: number;
+  screenBounds: Bounds;
+}
+
+export interface PinnedLayout {
+  entries: PinnedEntry[];
+  pinnedIds: Set<string>;
+}
+
+/**
+ * Compute screen-space layout for pinned shapes, stacked vertically on the left.
+ * Groups shapes by groupId and includes children of pinned drag areas.
+ */
+export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): PinnedLayout {
+  const pinned = allShapes.filter((s) => s.pinned);
+  if (pinned.length === 0) return { entries: [], pinnedIds: new Set() };
+
+  const groups: Shape[][] = [];
+  const seen = new Set<string>();
+
+  for (const s of pinned) {
+    if (seen.has(s.id)) continue;
+    const group: Shape[] = [];
+
+    if (s.groupId) {
+      for (const ps of pinned) {
+        if (ps.groupId === s.groupId && !seen.has(ps.id)) {
+          seen.add(ps.id);
+          group.push(ps);
+        }
+      }
+    } else {
+      seen.add(s.id);
+      group.push(s);
+    }
+
+    // Include children of pinned drag areas
+    const dragAreaIds = new Set(group.filter((g) => g.type === "drag-area").map((g) => g.id));
+    for (const child of allShapes) {
+      if (child.parentId && dragAreaIds.has(child.parentId) && !seen.has(child.id)) {
+        seen.add(child.id);
+        group.push(child);
+      }
+    }
+
+    groups.push(group);
+  }
+
+  const MARGIN_LEFT = 20;
+  const MARGIN_TOP = 60;
+  const GAP = 24;
+  let y = MARGIN_TOP;
+
+  const entries: PinnedEntry[] = [];
+  const pinnedIds = new Set(seen);
+
+  for (const group of groups) {
+    let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+    for (const s of group) {
+      const b = getShapeBounds(s, fontFamily);
+      gMinX = Math.min(gMinX, b.minX);
+      gMinY = Math.min(gMinY, b.minY);
+      gMaxX = Math.max(gMaxX, b.maxX);
+      gMaxY = Math.max(gMaxY, b.maxY);
+    }
+
+    const width = gMaxX - gMinX;
+    const height = gMaxY - gMinY;
+
+    entries.push({
+      shapes: group,
+      offsetX: MARGIN_LEFT - gMinX,
+      offsetY: y - gMinY,
+      screenBounds: { minX: MARGIN_LEFT, minY: y, maxX: MARGIN_LEFT + width, maxY: y + height },
+    });
+
+    y += height + GAP;
+  }
+
+  return { entries, pinnedIds };
+}
