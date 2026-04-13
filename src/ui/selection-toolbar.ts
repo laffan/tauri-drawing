@@ -131,31 +131,27 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const selected = state.shapes.filter((s) => state.selectedIds.has(s.id));
     if (selected.length === 0) { container.style.display = "none"; return; }
 
-    // Check if selected shapes are pinned (use pinned screen bounds for positioning)
+    // Check if selected shapes are pinned (use screen bounds for positioning)
     const pinnedLayout = computePinnedLayout(state.shapes, state.fontFamily);
-    const pinnedOffsets = new Map<string, { offsetX: number; offsetY: number }>();
+    const pinnedScreenMap = new Map<string, { minX: number; minY: number }>();
     for (const entry of pinnedLayout.entries) {
       for (const s of entry.shapes) {
-        pinnedOffsets.set(s.id, { offsetX: entry.offsetX, offsetY: entry.offsetY });
+        pinnedScreenMap.set(s.id, { minX: entry.screenBounds.minX, minY: entry.screenBounds.minY });
       }
     }
     const allSelectedPinned = selected.every((s) => pinnedLayout.pinnedIds.has(s.id));
 
     let screenMinX: number, screenMinY: number;
     if (allSelectedPinned) {
-      // Position toolbar relative to pinned screen bounds
       screenMinX = Infinity; screenMinY = Infinity;
       for (const s of selected) {
-        const b = getShapeBounds(s);
-        const off = pinnedOffsets.get(s.id);
-        if (off) {
-          screenMinX = Math.min(screenMinX, b.minX + off.offsetX);
-          screenMinY = Math.min(screenMinY, b.minY + off.offsetY);
-        }
+        const sb = pinnedScreenMap.get(s.id);
+        if (sb) { screenMinX = Math.min(screenMinX, sb.minX); screenMinY = Math.min(screenMinY, sb.minY); }
       }
     } else {
       let minX = Infinity, minY = Infinity;
       for (const s of selected) {
+        if (pinnedLayout.pinnedIds.has(s.id)) continue;
         const b = getShapeBounds(s);
         if (b.minX < minX) minX = b.minX;
         if (b.minY < minY) minY = b.minY;

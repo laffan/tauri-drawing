@@ -55,16 +55,21 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   ctx.scale(camera.zoom, camera.zoom);
 
   for (const shape of shapes) {
-    if (shape.type === "drag-area" && !pinnedIds.has(shape.id)) drawDragArea(ctx, shape);
+    if (shape.type === "drag-area") {
+      if (pinnedIds.has(shape.id)) { ctx.save(); ctx.globalAlpha = 0.2; drawDragArea(ctx, shape); ctx.restore(); }
+      else drawDragArea(ctx, shape);
+    }
   }
 
   for (const shape of shapes) {
     if (shape.type === "drag-area") continue;
-    if (pinnedIds.has(shape.id)) continue;
     if (shape.id === editingShapeId) continue;
+    const ghost = pinnedIds.has(shape.id);
+    if (ghost) { ctx.save(); ctx.globalAlpha = 0.2; }
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
     else if (shape.type === "text") drawTextShape(ctx, shape, theme, state.fontFamily);
-    else if (shape.type === "image") drawImageShape(ctx, shape, imageCache, shape.id === state.croppingImageId);
+    else if (shape.type === "image") drawImageShape(ctx, shape, imageCache, !ghost && shape.id === state.croppingImageId);
+    if (ghost) ctx.restore();
   }
 
   if (creatingDragArea) {
@@ -374,13 +379,6 @@ function drawPinnedEntries(
     ctx.strokeStyle = theme.uiBorder;
     ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.restore();
-
-    // Pin indicator
-    ctx.save();
-    ctx.font = "14px sans-serif";
-    ctx.textBaseline = "bottom";
-    ctx.fillText("\uD83D\uDCCD", b.minX - 2, b.minY - pad - 2);
     ctx.restore();
 
     // Draw shapes with offset + scale transform

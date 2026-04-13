@@ -433,7 +433,7 @@ export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): Pi
 
   const MARGIN_LEFT = 20;
   const MARGIN_TOP = 60;
-  const GAP = 24;
+  const GAP = 54;
   const THUMB_MAX = 120;
   let y = MARGIN_TOP;
 
