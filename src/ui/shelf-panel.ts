@@ -55,10 +55,10 @@ export function createShelfPanel(
     for (const da of dragAreas) {
       const children = shapes.filter((s) => s.parentId === da.id);
       const textChildren = children.filter((s) => s.type === "text");
-      let name = `\ud83e\uddfa (${children.length} items)`;
+      let name = `(${children.length} items)`;
       if (textChildren.length > 0) {
         const sorted = [...textChildren].sort((a, b) => { const ab = getShapeBounds(a); const bb = getShapeBounds(b); return ab.minY - bb.minY || ab.minX - bb.minX; });
-        if (sorted[0].type === "text") { const tx = sorted[0].text.substring(0, 40); name = `\ud83e\uddfa ${tx}${sorted[0].text.length > 40 ? "..." : ""}`; }
+        if (sorted[0].type === "text") { const tx = sorted[0].text.substring(0, 40); name = `${tx}${sorted[0].text.length > 40 ? "..." : ""}`; }
       }
       result.push({ id: da.id, type: "drag-area", label: name, excerpt: "", color: da.type === "drag-area" ? da.strokeColor : null, shapeId: da.id, parentId: undefined, depth: 0, pocketed: !!da.pocketed });
       if (!collapsed.has(da.id)) {
@@ -196,6 +196,13 @@ export function createShelfPanel(
     const row = h("div", { style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "13px", borderBottom: `1px solid ${subtleBorder}`, paddingLeft: (8 + node.depth * 16) + "px", borderLeft: node.color ? `3px solid ${node.color}` : "3px solid transparent", color: fg } });
     if (node.type === "drag-area") {
       row.appendChild(h("button", { text: collapsed.has(node.id) ? "\u25b8" : "\u25be", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", color: muted, padding: "0", width: "16px" }, onClick: () => { if (collapsed.has(node.id)) collapsed.delete(node.id); else collapsed.add(node.id); rebuild(); } }));
+    }
+    if (node.type === "drag-area") {
+      const daIcon = icon("drag-area", 12);
+      daIcon.style.flexShrink = "0";
+      daIcon.style.color = muted;
+      daIcon.style.marginRight = "2px";
+      row.appendChild(daIcon);
     }
     if (node.pocketed) {
       const pocketIcon = icon("pocket", 12);

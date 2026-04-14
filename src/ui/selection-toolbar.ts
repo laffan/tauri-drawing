@@ -167,8 +167,11 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
         if (b.minY < minY) minY = b.minY;
       }
       const topLeft = canvasToScreen({ x: minX, y: minY }, state.camera);
-      screenMinX = topLeft.x;
-      screenMinY = topLeft.y;
+      // Offset by selection highlight padding (6 canvas units) to align with the
+      // dashed selection box drawn in the renderer
+      const selPad = 6 * state.camera.zoom;
+      screenMinX = topLeft.x - selPad;
+      screenMinY = topLeft.y - selPad;
     }
 
     container.style.display = "flex";
@@ -193,11 +196,9 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
 
     if (hasImage && selected.length === 1) {
       const isCropping = state.croppingImageId === selected[0].id;
-      const theme = state.theme;
-      container.appendChild(h("button", {
-        title: isCropping ? "Finish crop" : "Crop image", text: "\u2702\ufe0f",
-        style: { width: "28px", height: "28px", border: "none", borderRadius: "6px", background: "transparent", cursor: "pointer", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", color: theme.foreground },
-        onClick: () => { if (isCropping) state.stopCropping(); else state.startCropping(selected[0].id); },
+      container.appendChild(makeIconBtn("crop", isCropping ? "Finish crop" : "Crop image", () => {
+        if (isCropping) state.stopCropping();
+        else state.startCropping(selected[0].id);
       }));
     }
 
