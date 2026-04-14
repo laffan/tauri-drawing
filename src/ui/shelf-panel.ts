@@ -21,7 +21,7 @@ export function createShelfPanel(
   const pinned = new Set<string>();
 
   const panel = h("div", {
-    style: { position: "absolute", top: "env(safe-area-inset-top)", right: "env(safe-area-inset-right)", bottom: "env(safe-area-inset-bottom)", zIndex: "150", display: "flex", flexDirection: "column", transition: "width 0.2s", overflow: "hidden", width: "24px", minWidth: "24px", borderRadius: "12px 0 0 12px" },
+    style: { position: "absolute", top: "calc(env(safe-area-inset-top) + 20px)", right: "env(safe-area-inset-right)", bottom: "calc(env(safe-area-inset-bottom) + 20px)", zIndex: "150", display: "flex", flexDirection: "column", transition: "width 0.2s", overflow: "hidden", width: "24px", minWidth: "24px", borderRadius: "12px 0 0 12px" },
   });
 
   const grip = h("button", {
@@ -32,7 +32,7 @@ export function createShelfPanel(
   panel.appendChild(grip);
 
   const content = h("div", {
-    style: { marginLeft: "24px", flex: "1", display: "flex", flexDirection: "column", overflow: "hidden" },
+    style: { marginLeft: "24px", flex: "1", display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" },
   });
   panel.appendChild(content);
 
@@ -104,7 +104,7 @@ export function createShelfPanel(
     clearChildren(content);
 
     // Search
-    const searchContainer = h("div", { style: { padding: "8px", position: "relative" } });
+    const searchContainer = h("div", { style: { position: "relative", marginBottom: "8px" } });
     const searchInput = h("input", { attrs: { type: "text", placeholder: "Search..." }, style: { width: "100%", padding: "6px 28px 6px 8px", border: `1px solid ${inputBorder}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box", background: inputBg, color: fg } });
     (searchInput as HTMLInputElement).value = search;
     searchInput.addEventListener("input", () => { search = (searchInput as HTMLInputElement).value; rebuild(); });
@@ -122,7 +122,7 @@ export function createShelfPanel(
     for (const n of nodes) { let m; while ((m = tagRegex.exec(n.excerpt)) !== null) tags.add(m[1]); }
     const sortedTags = Array.from(tags).sort();
     if (sortedTags.length > 0) {
-      const tagBar = h("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px", padding: "0 8px 8px" } });
+      const tagBar = h("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px", paddingBottom: "8px" } });
       for (const tag of sortedTags) {
         const active = activeTag === tag;
         tagBar.appendChild(h("button", { text: `#${tag}`, style: { padding: "2px 8px", border: "none", borderRadius: "10px", fontSize: "11px", cursor: "pointer", background: active ? theme.accent : (theme.variant === "dark" ? "rgba(255,255,255,0.08)" : "#f1f3f5"), color: active ? "#fff" : muted }, onClick: () => { activeTag = activeTag === tag ? null : tag; rebuild(); } }));
@@ -140,7 +140,7 @@ export function createShelfPanel(
 
     // Shelf items
     if (opts.shelfItems.length > 0) {
-      const section = h("div", { style: { padding: "4px 8px", borderBottom: `1px solid ${border}` } });
+      const section = h("div", { style: { padding: "4px 0", borderBottom: `1px solid ${border}` } });
       section.appendChild(h("div", { text: "Shelved", style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
       opts.shelfItems.forEach((text, i) => {
         const row = h("div", {
@@ -168,7 +168,7 @@ export function createShelfPanel(
 
     // Pinned
     if (pinnedItems.length > 0) {
-      const section = h("div", { style: { padding: "4px 8px", borderBottom: `1px solid ${border}` } });
+      const section = h("div", { style: { padding: "4px 0", borderBottom: `1px solid ${border}` } });
       const pinnedHeader = h("div", { style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0", display: "flex", alignItems: "center", gap: "4px" } });
       const pinnedIcon = icon("pin", 11);
       pinnedIcon.style.color = muted;
@@ -193,7 +193,7 @@ export function createShelfPanel(
     const fg = theme.foreground;
     const muted = theme.variant === "dark" ? "rgba(255,255,255,0.4)" : "#999";
     const subtleBorder = theme.variant === "dark" ? "rgba(255,255,255,0.04)" : "#f8f9fa";
-    const row = h("div", { style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "13px", borderBottom: `1px solid ${subtleBorder}`, paddingLeft: (8 + node.depth * 16) + "px", borderLeft: node.color ? `3px solid ${node.color}` : "3px solid transparent", color: fg } });
+    const row = h("div", { style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 0", cursor: "pointer", fontSize: "13px", borderBottom: `1px solid ${subtleBorder}`, paddingLeft: (node.depth * 16) + "px", borderLeft: node.color ? `3px solid ${node.color}` : "3px solid transparent", color: fg } });
     if (node.type === "drag-area") {
       row.appendChild(h("button", { text: collapsed.has(node.id) ? "\u25b8" : "\u25be", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", color: muted, padding: "0", width: "16px" }, onClick: () => { if (collapsed.has(node.id)) collapsed.delete(node.id); else collapsed.add(node.id); rebuild(); } }));
     }

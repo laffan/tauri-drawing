@@ -57,7 +57,9 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
       const updateBtn = h("button", { title: "Update to current view", style: { border: "none", background: "none", cursor: "pointer", color: muted, display: "flex", alignItems: "center", padding: "2px" }, onClick: () => { state.updateBookmark(bm.id); } });
       updateBtn.appendChild(icon("update", 14));
       row.appendChild(updateBtn);
-      row.appendChild(h("button", { text: "\u00d7", style: { border: "none", background: "none", cursor: "pointer", color: muted, fontSize: "16px", padding: "2px", lineHeight: "1" }, onClick: () => { state.deleteBookmark(bm.id); rebuild(); } }));
+      const deleteBtn = h("button", { title: "Delete bookmark", style: { border: "none", background: "none", cursor: "pointer", color: muted, display: "flex", alignItems: "center", padding: "2px" }, onClick: () => { state.deleteBookmark(bm.id); rebuild(); } });
+      deleteBtn.appendChild(icon("trash", 14));
+      row.appendChild(deleteBtn);
       dropdown.appendChild(row);
     }
 
