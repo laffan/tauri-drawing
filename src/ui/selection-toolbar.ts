@@ -264,7 +264,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
       const theme = state.theme;
       const nameEl = h("span", {
         text: baseName,
-        style: { fontSize: "14px", color: theme.foreground, cursor: "pointer", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginLeft: "4px", lineHeight: "28px" },
+        style: { fontSize: "14px", color: theme.foreground, cursor: "pointer", whiteSpace: "nowrap", marginLeft: "4px", lineHeight: "28px" },
       });
 
       function commitRename() {
