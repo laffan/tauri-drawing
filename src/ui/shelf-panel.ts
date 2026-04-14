@@ -41,9 +41,10 @@ export function createShelfPanel(
   function applyTheme() {
     const theme = t();
     panel.style.background = theme.uiBackground;
-    panel.style.borderLeft = `1px solid ${theme.uiBorder}`;
-    grip.style.background = theme.variant === "dark" ? "rgba(255,255,255,0.05)" : "#f8f9fa";
-    grip.style.borderColor = theme.uiBorder;
+    panel.style.border = `1px solid ${theme.gridColor}`;
+    panel.style.borderRight = "none";
+    grip.style.background = "transparent";
+    grip.style.borderColor = "transparent";
     grip.style.color = theme.foreground;
   }
 
