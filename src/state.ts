@@ -483,12 +483,13 @@ export class DrawingState extends EventTarget {
 
     if (this._isDragging) {
       this._isDragging = false;
+      const trayWasVisible = this._showPocketTray;
       this._clearDragHoldTimer();
 
       // Check if items should be pocketed (dropped in pocket zone on left edge)
       // Only if tray was visible (held for 1+ second)
       const canvas = this.canvasEl;
-      if (this._showPocketTray && canvas) {
+      if (trayWasVisible && canvas) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         if (screenX < POCKET_ZONE_WIDTH) {
