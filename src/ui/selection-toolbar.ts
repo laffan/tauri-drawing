@@ -269,23 +269,26 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
         style: { fontSize: "14px", color: theme.foreground, cursor: "pointer", whiteSpace: "nowrap", marginLeft: "4px", lineHeight: "28px" },
       });
 
+      let committed = false;
       function commitRename() {
+        if (committed) return;
+        committed = true;
         isRenamingImage = false;
         nameEl.removeAttribute("contenteditable");
         nameEl.style.color = theme.foreground;
         nameEl.style.outline = "none";
         nameEl.style.minWidth = "";
+        nameEl.removeEventListener("blur", commitRename);
         const newBase = (nameEl.textContent || "").trim();
         if (newBase && newBase !== baseName) {
           state.renameImage(imgShape.id, newBase + ext);
-        } else {
-          nameEl.textContent = baseName;
         }
       }
 
       nameEl.addEventListener("click", (e) => {
         e.stopPropagation();
         if (nameEl.getAttribute("contenteditable") === "true") return;
+        committed = false;
         isRenamingImage = true;
         nameEl.setAttribute("contenteditable", "true");
         nameEl.style.color = theme.accent;
