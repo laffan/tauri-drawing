@@ -64,7 +64,7 @@ export class DrawingState extends EventTarget {
   fontFamily = "Inter";
 
   get canvasWidth(): number { return this.canvasEl?.clientWidth || window.innerWidth; }
-  get isActiveDrag(): boolean { return this._isDragging; }
+  get isActiveDrag(): boolean { return this._showPocketTray; }
 
   get theme(): CanvasTheme {
     const variant = getEffectiveVariant(this.appearanceMode);
@@ -124,6 +124,8 @@ export class DrawingState extends EventTarget {
   // Pocket drag state
   private _pocketDragPending = false;
   private _pocketDragScreenStart: Point = { x: 0, y: 0 };
+  private _showPocketTray = false;
+  private _dragHoldTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Batched notification
   private _pendingKeys = new Set<string>();
@@ -320,6 +322,7 @@ export class DrawingState extends EventTarget {
           }
           this._isDragging = true;
           this._dragStart = canvasPt;
+          this._startDragHoldTimer();
 
           if (e.altKey) {
             const currentSelected = this.selectedIds.has(hitShape.id) ? this.selectedIds : new Set(groupMembers);
@@ -480,10 +483,12 @@ export class DrawingState extends EventTarget {
 
     if (this._isDragging) {
       this._isDragging = false;
+      this._clearDragHoldTimer();
 
-      // Check if items should be pocketed (dropped in pocket zone on right edge)
+      // Check if items should be pocketed (dropped in pocket zone on left edge)
+      // Only if tray was visible (held for 1+ second)
       const canvas = this.canvasEl;
-      if (canvas) {
+      if (this._showPocketTray && canvas) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         if (screenX < POCKET_ZONE_WIDTH) {
@@ -581,6 +586,23 @@ export class DrawingState extends EventTarget {
       zoom: newZoom,
     };
     this.notify("camera");
+  }
+
+  // === Pocket hold timer ===
+  private _startDragHoldTimer() {
+    this._clearDragHoldTimer();
+    this._dragHoldTimer = setTimeout(() => {
+      this._showPocketTray = true;
+      this.notify("shapes"); // triggers render to show tray
+    }, 1000);
+  }
+
+  private _clearDragHoldTimer() {
+    if (this._dragHoldTimer !== null) {
+      clearTimeout(this._dragHoldTimer);
+      this._dragHoldTimer = null;
+    }
+    this._showPocketTray = false;
   }
 
   // === Shape operations ===
