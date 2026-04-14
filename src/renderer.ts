@@ -90,6 +90,25 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   }
 
   if (selectedIds.size > 0) {
+    // Draw group bounding boxes first (behind individual highlights)
+    const groupBounds = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
+    for (const shape of shapes) {
+      if (!selectedIds.has(shape.id) || pocketedIds.has(shape.id) || !shape.groupId) continue;
+      const b = getShapeBounds(shape);
+      const existing = groupBounds.get(shape.groupId);
+      if (existing) {
+        existing.minX = Math.min(existing.minX, b.minX);
+        existing.minY = Math.min(existing.minY, b.minY);
+        existing.maxX = Math.max(existing.maxX, b.maxX);
+        existing.maxY = Math.max(existing.maxY, b.maxY);
+      } else {
+        groupBounds.set(shape.groupId, { minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY });
+      }
+    }
+    for (const bounds of groupBounds.values()) {
+      drawGroupHighlight(ctx, bounds, camera.zoom, theme.accent);
+    }
+
     for (const shape of shapes) {
       if (selectedIds.has(shape.id) && !pocketedIds.has(shape.id)) {
         if (shape.id === state.croppingImageId && shape.type === "image") {
@@ -314,6 +333,21 @@ function drawSelectionHighlight(ctx: CanvasRenderingContext2D, shape: Shape, zoo
     ctx.fillRect(hx - half, hy - half, handleSize, handleSize);
     ctx.strokeRect(hx - half, hy - half, handleSize, handleSize);
   }
+  ctx.restore();
+}
+
+function drawGroupHighlight(ctx: CanvasRenderingContext2D, bounds: { minX: number; minY: number; maxX: number; maxY: number }, zoom: number, accentColor: string) {
+  const pad = 14;
+  const x1 = bounds.minX - pad, y1 = bounds.minY - pad;
+  const w = bounds.maxX - bounds.minX + pad * 2;
+  const h = bounds.maxY - bounds.minY + pad * 2;
+  ctx.save();
+  ctx.strokeStyle = accentColor;
+  ctx.globalAlpha = 0.3;
+  ctx.lineWidth = 1 / zoom;
+  ctx.setLineDash([6 / zoom, 4 / zoom]);
+  ctx.strokeRect(x1, y1, w, h);
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
