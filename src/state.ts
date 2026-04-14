@@ -724,6 +724,11 @@ export class DrawingState extends EventTarget {
   updateBookmark(id: string) { this.bookmarks = this.bookmarks.map((b) => b.id === id ? { ...b, camera: { ...this.camera } } : b); this.notify("bookmarks"); }
   deleteBookmark(id: string) { this.bookmarks = this.bookmarks.filter((b) => b.id !== id); this.notify("bookmarks"); }
 
+  renameImage(id: string, name: string) {
+    this.shapes = this.shapes.map((s) => s.id === id && s.type === "image" ? { ...s, name } : s);
+    this.notify("shapes");
+  }
+
   // === External content ===
   addImageShape(dataUrl: string, name: string, w: number, h: number, position?: Point) {
     const maxSize = 400, aspect = w / Math.max(h, 1);

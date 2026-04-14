@@ -252,6 +252,56 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     }
 
     container.appendChild(makeIconBtn("trash", "Delete", () => state.deleteSelected()));
+
+    // Inline image rename
+    if (hasImage && selected.length === 1 && selected[0].type === "image") {
+      const imgShape = selected[0];
+      const fullName = imgShape.name || "";
+      const dotIdx = fullName.lastIndexOf(".");
+      const baseName = dotIdx > 0 ? fullName.substring(0, dotIdx) : fullName;
+      const ext = dotIdx > 0 ? fullName.substring(dotIdx) : "";
+
+      const theme = state.theme;
+      const nameEl = h("span", {
+        text: baseName,
+        style: { fontSize: "14px", color: theme.foreground, cursor: "pointer", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginLeft: "4px", lineHeight: "28px" },
+      });
+
+      function commitRename() {
+        nameEl.removeAttribute("contenteditable");
+        nameEl.style.color = theme.foreground;
+        nameEl.style.outline = "none";
+        nameEl.style.minWidth = "";
+        const newBase = (nameEl.textContent || "").trim();
+        if (newBase && newBase !== baseName) {
+          state.renameImage(imgShape.id, newBase + ext);
+        } else {
+          nameEl.textContent = baseName;
+        }
+      }
+
+      nameEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (nameEl.getAttribute("contenteditable") === "true") return;
+        nameEl.setAttribute("contenteditable", "true");
+        nameEl.style.color = theme.accent;
+        nameEl.style.outline = "none";
+        nameEl.style.minWidth = "40px";
+        nameEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(nameEl);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      });
+      nameEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); commitRename(); }
+      });
+      nameEl.addEventListener("blur", commitRename);
+      nameEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+      container.appendChild(nameEl);
+    }
   }
 
   state.addEventListener("change", update);

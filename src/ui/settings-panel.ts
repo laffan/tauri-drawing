@@ -2,18 +2,21 @@ import type { DrawingState } from "../state";
 import type { AppearanceMode } from "../themes";
 import { THEMES, THEME_IDS } from "../themes";
 import { h, clearChildren } from "./dom-helpers";
+import { icon } from "./icons";
 
 export function createSettingsPanel(state: DrawingState, mountOverlayOn?: HTMLElement): HTMLElement {
   let isOpen = false;
 
   const toggleBtn = h("button", {
-    text: "\u2699\ufe0f",
     title: "Settings",
     style: {
-      padding: "6px 10px", border: "none", borderRadius: "8px",
+      width: "36px", height: "36px", border: "none", borderRadius: "8px",
       background: "rgba(255,255,255,0.9)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-      cursor: "pointer", fontSize: "16px", backdropFilter: "blur(8px)",
+      cursor: "pointer", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      color: "#333",
     },
+    children: [icon("settings", 20)],
     onClick: () => { isOpen = !isOpen; rebuild(); },
   });
 

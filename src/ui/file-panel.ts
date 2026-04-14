@@ -1,6 +1,7 @@
 import type { DrawingState } from "../state";
 import { saveNoteFile, openNoteFile } from "../file-io";
 import { h } from "./dom-helpers";
+import { icon } from "./icons";
 
 export function createFilePanel(state: DrawingState): HTMLElement {
   const container = h("div", {
@@ -8,16 +9,18 @@ export function createFilePanel(state: DrawingState): HTMLElement {
   });
 
   const btnStyle: Partial<CSSStyleDeclaration> = {
-    padding: "6px 10px", border: "none", borderRadius: "8px",
+    width: "36px", height: "36px", border: "none", borderRadius: "8px",
     background: "rgba(255,255,255,0.9)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-    cursor: "pointer", fontSize: "16px", backdropFilter: "blur(8px)",
+    cursor: "pointer", backdropFilter: "blur(8px)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    color: "#333",
   };
 
   // Save button
-  container.appendChild(h("button", {
-    text: "\ud83d\udcbe",
+  const saveBtn = h("button", {
     title: "Save (.note)",
     style: { ...btnStyle },
+    children: [icon("save", 20)],
     onClick: async () => {
       try {
         await saveNoteFile(state.shapes);
@@ -25,13 +28,14 @@ export function createFilePanel(state: DrawingState): HTMLElement {
         console.error("Save failed:", err);
       }
     },
-  }));
+  });
+  container.appendChild(saveBtn);
 
   // Open button
-  container.appendChild(h("button", {
-    text: "\ud83d\udcc2",
+  const openBtn = h("button", {
     title: "Open (.note)",
     style: { ...btnStyle },
+    children: [icon("open", 20)],
     onClick: async () => {
       try {
         const shapes = await openNoteFile();
@@ -45,7 +49,8 @@ export function createFilePanel(state: DrawingState): HTMLElement {
         console.error("Open failed:", err);
       }
     },
-  }));
+  });
+  container.appendChild(openBtn);
 
   return container;
 }
