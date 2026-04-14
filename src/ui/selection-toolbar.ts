@@ -175,8 +175,8 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     }
 
     container.style.display = "flex";
-    container.style.left = screenMinX + "px";
-    container.style.top = (screenMinY - 44) + "px";
+    container.style.left = (screenMinX - 7) + "px";
+    container.style.top = (screenMinY - 34) + "px";
 
     const hasText = selected.some((s) => s.type === "text");
     const hasImage = selected.some((s) => s.type === "image");
