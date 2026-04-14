@@ -11,7 +11,7 @@ src/
   main.ts                 Entry point — mounts NotesCanvas
   notes-canvas.ts         Public API class — orchestrates everything
   state.ts                DrawingState class — all app state + mutations
-  state-helpers.ts        Pure helper functions (find, resize, crop, link hit-test, autoFitWidth, pinned hit-test)
+  state-helpers.ts        Pure helper functions (find, resize, crop, link hit-test, autoFitWidth, pocket hit-test)
   renderer.ts             Canvas 2D draw functions (pure, no side effects)
   input-handler.ts        Wires native DOM events to state methods
   external-content.ts     Clipboard/drag-drop/file helpers
@@ -20,12 +20,12 @@ src/
   themes.ts               16 color themes + appearance mode (light/dark/auto)
   types.ts                Shape types, constants, color palettes
   undo-manager.ts         Snapshot-based undo/redo (100 entries)
-  utils.ts                Geometry, hit testing, text measurement, alignment, pinned layout
+  utils.ts                Geometry, hit testing, text measurement, alignment, pocket layout
   ui/
     dom-helpers.ts         h() element builder, setStyles(), clearChildren()
-    toolbar.ts             Bottom floating tool bar
-    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop, pin)
-    bookmarks-panel.ts     Camera bookmark dropdown
+    toolbar.ts             Bottom floating tool bar (tools, bookmarks, undo/redo)
+    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop, shelf)
+    bookmarks-panel.ts     Camera bookmark dropdown (mounted in bottom toolbar)
     file-panel.ts          Save/open buttons (native dialogs)
     settings-panel.ts      Settings modal (appearance, theme, font, background, shortcuts)
     shelf-panel.ts         Right-side hierarchical shape browser (themed)
@@ -80,15 +80,18 @@ Never mutate shapes, selection, camera, or tool state from UI components or inpu
 
 `UndoManager` in `undo-manager.ts` stores up to 100 shape snapshots. Call `state.recordHistory()` after each completed user action (not during continuous interactions like dragging). For drag/resize, record once on pointer-up.
 
-### Pinning
+### Pocket
 
-Pinning attaches shapes to the left edge of the viewport, independent of camera pan/zoom. The shape's canvas position never changes — pinning only affects how and where it is rendered.
+The pocket is a temporary stash on the left edge of the viewport. Users hold-drag a shape (1 second) toward the left edge to pocket it; drag it back out to place it elsewhere. Pocketed items are independent of camera pan/zoom. The selection toolbar is hidden while items are in the pocket.
 
-- `ShapeBase.pinned` marks a shape as pinned. `ShapeBase.pinnedExpanded` controls the thumbnail toggle for pinned images.
-- `computePinnedLayout()` in `utils.ts` groups pinned shapes (by `groupId`, including drag-area children), computes screen-space positions stacked vertically on the left side, and returns a `PinnedLayout` with offsets, scale factors, screen bounds, and the full set of pinned shape IDs.
-- The renderer draws pinned shapes twice: once at 20% opacity at their original canvas position (inside camera transform), then at full opacity at their screen-space position (outside camera transform) on a card background.
-- Hit testing in `state.ts` checks pinned screen bounds first (via `findPinnedShapeAtScreen` in `state-helpers.ts`), then falls back to normal canvas hit testing with pinned shapes filtered out.
-- Pinned images render as thumbnails (max 120px) by default. Clicking a pinned image toggles `pinnedExpanded`, switching between thumbnail and full-size.
+- `ShapeBase.pocketed` marks a shape as pocketed. There is no toggle button — pocketing is purely drag-based.
+- A 20px light-blue tray (`POCKET_TRAY_WIDTH`) is drawn on the left edge. During drags a wider highlight (`POCKET_ZONE_WIDTH`, 80px) shows the drop zone. Both constants live in `utils.ts`.
+- The tray only appears after the user has been holding a drag for 1 second (`_startDragHoldTimer` / `_clearDragHoldTimer` in `state.ts`). This prevents flashes on quick clicks and double-clicks.
+- `computePocketLayout()` in `utils.ts` groups pocketed shapes (by `groupId`, including drag-area children), scales them to fit a max 140px bounding box, and stacks them vertically on the left side, returning a `PocketLayout` with offsets, scale factors, screen bounds, and the full set of pocketed shape IDs.
+- The renderer skips pocketed shapes during normal canvas drawing (no ghost). They are drawn only at their screen-space pocket position on a light-blue card background.
+- Hit testing in `state.ts` checks pocket screen bounds first (via `findPocketedShapeAtScreen` in `state-helpers.ts`), then falls back to normal canvas hit testing with pocketed shapes filtered out.
+- Dragging from the pocket: on pointer-down the item is selected and a pending drag is prepared; on first pointer-move the item is unpocketed, repositioned to the cursor, and a standard canvas drag begins. If released back in the pocket zone, the item is re-pocketed.
+- In the shelf panel, pocketed items are shown with a 👖 icon prefix.
 
 ### Safe area handling
 

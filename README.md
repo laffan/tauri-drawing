@@ -19,14 +19,13 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - Aspect-ratio-locked resizing
 - Non-destructive crop: ✂️ button enters crop mode with red handles, drag to pan the crop window, click outside to confirm
 - Auto-selected immediately after drop
-- Pinnable: pinned images show as thumbnails, click to toggle full size
 
 **Organization**
 - Drag Areas (🧺): dashed container regions that group shapes
 - Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup
 - Alignment & distribution: top/bottom/left/right align + horizontal/vertical distribute
-- Pinning: 📍 button pins text, images, groups, or drag areas to the left edge of the window, ignoring canvas pan/zoom; original position shows a ghost at 20% opacity; unpinning restores the item
-- Shelf Panel: right-side panel with search, #tag filtering, pinning, and drag-to-restore
+- Pocket: hold-drag (1 second) any item to the light-blue tray on the left edge to stash it temporarily; drag it back out from the pocket to place it elsewhere on the canvas. Pocketed items have no toolbar controls while in the pocket.
+- Shelf Panel: right-side panel with search, #tag filtering, pinning within the list, and drag-to-restore. Items moved to the shelf appear under a "Shelved" header; pocketed items show a 👖 icon.
 
 **Brainstorm Mode**
 - Click anywhere to open a persistent text input
