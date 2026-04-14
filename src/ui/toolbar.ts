@@ -58,7 +58,7 @@ export function createToolbar(state: DrawingState): HTMLElement {
 
   const container = h("div", {
     style: {
-      position: "absolute", bottom: "16px", left: "50%", transform: "translateX(-50%)",
+      position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
       display: "flex", alignItems: "center", gap: "4px", padding: "6px 8px",
       background: "rgba(255,255,255,0.95)", borderRadius: "12px",
       boxShadow: "0 2px 12px rgba(0,0,0,0.12)", zIndex: "100", userSelect: "none",

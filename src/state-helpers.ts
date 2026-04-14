@@ -11,7 +11,7 @@ export async function openExternalUrl(url: string) {
 }
 import type { ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
-import { computePinnedLayout, hitTestShape, measureTextWidth, pointInBounds } from "./utils";
+import { computePinnedLayout, getMeasureCtx, hitTestShape, pointInBounds } from "./utils";
 import { parseLine, parseText } from "./markdown";
 import type { ResizeHandle } from "./state";
 
@@ -129,14 +129,23 @@ export function applyCropResize(origShape: ImageShape, handle: ResizeHandle, ori
   return { ...origShape, position: { x: minX, y: minY }, width: maxX - minX, height: maxY - minY, crop: { x: cropX, y: cropY, w: cropW, h: cropH } };
 }
 
-/** Measure widest rendered line (accounting for heading scale + font) and return fitted width. */
+/** Measure widest rendered line (accounting for heading scale, bold/italic + font) and return fitted width. */
 export function autoFitWidth(text: string, fontSize: number, constraintWidth: number | undefined, fontFamily: string): number {
   const cw = constraintWidth || 350;
+  const ff = `${fontFamily}, ${FONT_FAMILY}`;
+  const ctx = getMeasureCtx();
   let maxW = 0;
   for (const line of text.split("\n")) {
     const parsed = parseLine(line);
-    const displayText = parsed.runs.map((r) => r.text).join("");
-    maxW = Math.max(maxW, measureTextWidth(displayText, fontSize * parsed.sizeScale, fontFamily));
+    const lineFontSize = fontSize * parsed.sizeScale;
+    let lineW = 0;
+    for (const run of parsed.runs) {
+      const weight = run.bold ? "bold" : "normal";
+      const style = run.italic ? "italic" : "normal";
+      ctx.font = `${style} ${weight} ${lineFontSize}px ${ff}`;
+      lineW += ctx.measureText(run.text).width;
+    }
+    maxW = Math.max(maxW, lineW);
   }
   return maxW < cw ? Math.max(30, maxW + 8) : cw;
 }

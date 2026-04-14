@@ -19,7 +19,7 @@ export function createShelfPanel(
   const pinned = new Set<string>();
 
   const panel = h("div", {
-    style: { position: "absolute", top: "0", right: "0", height: "100%", zIndex: "150", display: "flex", flexDirection: "column", transition: "width 0.2s", overflow: "hidden", width: "24px", minWidth: "24px" },
+    style: { position: "absolute", top: "0", right: "env(safe-area-inset-right)", height: "100%", zIndex: "150", display: "flex", flexDirection: "column", transition: "width 0.2s", overflow: "hidden", width: "24px", minWidth: "24px" },
   });
 
   const grip = h("button", {

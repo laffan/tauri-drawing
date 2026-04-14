@@ -104,10 +104,10 @@ export class NotesCanvas {
     // Top-center bar for bookmarks, settings, and file buttons
     const topBar = h("div", {
       style: {
-        position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)",
+        position: "absolute", top: "calc(12px + env(safe-area-inset-top))", left: "50%", transform: "translateX(-50%)",
         zIndex: "200", display: "flex", gap: "4px", pointerEvents: "auto",
       },
-      children: [createBookmarksPanel(this.state), createSettingsPanel(this.state), createFilePanel(this.state)],
+      children: [createBookmarksPanel(this.state), createSettingsPanel(this.state, container), createFilePanel(this.state)],
     });
     topBar.addEventListener("pointerdown", (e) => e.stopPropagation());
     container.appendChild(topBar);

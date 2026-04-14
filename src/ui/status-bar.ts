@@ -9,7 +9,7 @@ export function createStatusBar(state: DrawingState): HTMLElement {
 
   const bar = h("div", {
     style: {
-      position: "absolute", bottom: "0", left: "0", display: "flex",
+      position: "absolute", bottom: "env(safe-area-inset-bottom)", left: "env(safe-area-inset-left)", display: "flex",
       alignItems: "center", padding: "0 12px", gap: "16px", height: "24px",
       fontSize: "11px", color: "#868e96", zIndex: "50",
       background: "rgba(255,255,255,0.7)", borderRadius: "0 8px 0 0",

@@ -3,9 +3,7 @@ import type { AppearanceMode } from "../themes";
 import { THEMES, THEME_IDS } from "../themes";
 import { h, clearChildren } from "./dom-helpers";
 
-export function createSettingsPanel(state: DrawingState): HTMLElement {
-  const container = h("div", { style: { position: "relative" } });
-
+export function createSettingsPanel(state: DrawingState, mountOverlayOn?: HTMLElement): HTMLElement {
   let isOpen = false;
 
   const toggleBtn = h("button", {
@@ -18,24 +16,25 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
     },
     onClick: () => { isOpen = !isOpen; rebuild(); },
   });
-  container.appendChild(toggleBtn);
 
-  // Modal overlay
+  // Modal overlay — mounted at root level to avoid iOS transform clipping
   const overlay = h("div", {
     style: {
       display: "none", position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
       background: "rgba(0,0,0,0.3)", zIndex: "500", alignItems: "center", justifyContent: "center",
     },
   });
+  overlay.addEventListener("pointerdown", (e) => e.stopPropagation());
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) { isOpen = false; rebuild(); }
   });
-  container.appendChild(overlay);
+  if (mountOverlayOn) mountOverlayOn.appendChild(overlay);
+  else toggleBtn.appendChild(overlay);
 
   const modal = h("div", {
     style: {
       background: "#fff", borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-      width: "440px", maxHeight: "80vh", overflow: "auto", padding: "0",
+      width: "min(440px, 90vw)", maxHeight: "80vh", overflow: "auto", padding: "0",
     },
   });
   overlay.appendChild(modal);
@@ -235,5 +234,5 @@ export function createSettingsPanel(state: DrawingState): HTMLElement {
     modal.appendChild(shortcutsSection);
   }
 
-  return container;
+  return toggleBtn;
 }

@@ -63,7 +63,7 @@ export function getPointsBounds(points: Point[]): Bounds {
 
 // Offscreen canvas for accurate text measurement
 let _measureCtx: CanvasRenderingContext2D | null = null;
-function getMeasureCtx(): CanvasRenderingContext2D {
+export function getMeasureCtx(): CanvasRenderingContext2D {
   if (!_measureCtx) {
     const c = document.createElement("canvas");
     _measureCtx = c.getContext("2d")!;
