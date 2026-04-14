@@ -5,6 +5,7 @@ import { icon } from "./icons";
 export function createBookmarksPanel(state: DrawingState): HTMLElement {
   let isOpen = false;
   let adding = false;
+  let animatingUpdateId: string | null = null;
 
   const container = h("div", { style: { position: "relative" } });
   const toggleBtn = h("button", {
@@ -27,6 +28,12 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
     isOpen = false;
     adding = false;
     rebuild();
+  });
+
+  // Close on Escape
+  document.addEventListener("keydown", (e) => {
+    if (!isOpen) return;
+    if (e.key === "Escape") { isOpen = false; adding = false; rebuild(); }
   });
 
   function rebuild() {
@@ -55,10 +62,17 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
       const row = h("div", { style: { display: "flex", alignItems: "center", padding: "6px 12px", borderBottom: `1px solid ${theme.variant === "dark" ? "rgba(255,255,255,0.04)" : "#f8f9fa"}`, fontSize: "13px", gap: "2px" } });
       row.appendChild(h("span", { text: bm.name, style: { flex: "1", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: fg }, onClick: () => { state.goToBookmark(bm); isOpen = false; rebuild(); } }));
       const updateIcon = icon("update", 14);
-      updateIcon.style.transition = "transform 0.4s ease";
-      const updateBtn = h("button", { title: "Update to current view", style: { border: "none", background: "none", cursor: "pointer", color: muted, display: "flex", alignItems: "center", padding: "2px" }, onClick: () => { state.updateBookmark(bm.id); updateIcon.style.transform = "rotate(360deg)"; setTimeout(() => { updateIcon.style.transition = "none"; updateIcon.style.transform = ""; requestAnimationFrame(() => { updateIcon.style.transition = "transform 0.4s ease"; }); }, 400); } });
+      const updateBtn = h("button", { title: "Update to current view", style: { border: "none", background: "none", cursor: "pointer", color: muted, display: "flex", alignItems: "center", padding: "2px" }, onClick: () => { animatingUpdateId = bm.id; state.updateBookmark(bm.id); } });
       updateBtn.appendChild(updateIcon);
       row.appendChild(updateBtn);
+      // Trigger spin animation after rebuild recreates this icon
+      if (animatingUpdateId === bm.id) {
+        animatingUpdateId = null;
+        requestAnimationFrame(() => {
+          updateIcon.style.transition = "transform 0.4s ease";
+          updateIcon.style.transform = "rotate(360deg)";
+        });
+      }
       const deleteBtn = h("button", { title: "Delete bookmark", style: { border: "none", background: "none", cursor: "pointer", color: muted, display: "flex", alignItems: "center", padding: "2px" }, onClick: () => { state.deleteBookmark(bm.id); rebuild(); } });
       deleteBtn.appendChild(icon("trash", 14));
       row.appendChild(deleteBtn);
