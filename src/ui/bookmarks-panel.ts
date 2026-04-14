@@ -19,6 +19,16 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
   });
   container.appendChild(dropdown);
 
+  // Close on click outside
+  document.addEventListener("pointerdown", (e) => {
+    if (!isOpen) return;
+    const target = e.target as HTMLElement;
+    if (container.contains(target)) return;
+    isOpen = false;
+    adding = false;
+    rebuild();
+  });
+
   function rebuild() {
     const theme = state.theme;
     const fg = theme.foreground;
@@ -42,9 +52,12 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
     dropdown.appendChild(h("div", { text: "Bookmarks", style: { padding: "8px 12px", fontWeight: "600", fontSize: "13px", borderBottom: `1px solid ${theme.uiBorder}`, color: fg } }));
 
     for (const bm of state.bookmarks) {
-      const row = h("div", { style: { display: "flex", alignItems: "center", padding: "6px 12px", borderBottom: `1px solid ${theme.variant === "dark" ? "rgba(255,255,255,0.04)" : "#f8f9fa"}`, fontSize: "13px" } });
+      const row = h("div", { style: { display: "flex", alignItems: "center", padding: "6px 12px", borderBottom: `1px solid ${theme.variant === "dark" ? "rgba(255,255,255,0.04)" : "#f8f9fa"}`, fontSize: "13px", gap: "2px" } });
       row.appendChild(h("span", { text: bm.name, style: { flex: "1", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: fg }, onClick: () => { state.goToBookmark(bm); isOpen = false; rebuild(); } }));
-      row.appendChild(h("button", { text: "\u00d7", style: { border: "none", background: "none", cursor: "pointer", color: muted, fontSize: "16px" }, onClick: () => { state.deleteBookmark(bm.id); rebuild(); } }));
+      const updateBtn = h("button", { title: "Update to current view", style: { border: "none", background: "none", cursor: "pointer", color: muted, display: "flex", alignItems: "center", padding: "2px" }, onClick: () => { state.updateBookmark(bm.id); } });
+      updateBtn.appendChild(icon("update", 14));
+      row.appendChild(updateBtn);
+      row.appendChild(h("button", { text: "\u00d7", style: { border: "none", background: "none", cursor: "pointer", color: muted, fontSize: "16px", padding: "2px", lineHeight: "1" }, onClick: () => { state.deleteBookmark(bm.id); rebuild(); } }));
       dropdown.appendChild(row);
     }
 
