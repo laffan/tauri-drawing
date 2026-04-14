@@ -2,6 +2,7 @@ import type { DrawingState } from "../state";
 import { COLOR_PALETTE, BACKGROUND_COLORS, TEXT_COLORS } from "../types";
 import { canvasToScreen, computePocketLayout, getShapeBounds } from "../utils";
 import { h, clearChildren } from "./dom-helpers";
+import { icon } from "./icons";
 
 export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () => void): HTMLElement {
   const container = h("div", {
@@ -18,17 +19,20 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     popupWrapper = null;
   }
 
-  function makeIconBtn(icon: string, title: string, onClick: () => void): HTMLButtonElement {
+  function makeIconBtn(iconName: string, title: string, onClick: () => void): HTMLButtonElement {
+    const theme = state.theme;
     return h("button", {
-      title, text: icon,
-      style: { width: "28px", height: "28px", border: "none", borderRadius: "6px", background: "transparent", cursor: "pointer", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center" },
+      title,
+      style: { width: "28px", height: "28px", border: "none", borderRadius: "6px", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: theme.foreground },
+      children: [icon(iconName, 18)],
       onClick,
     });
   }
 
   function makePalette(colors: readonly string[], onSelect: (c: string) => void): HTMLElement {
+    const theme = state.theme;
     return h("div", {
-      style: { position: "absolute", top: "-36px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "4px", padding: "6px 8px", background: "#fff", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: "300" },
+      style: { position: "absolute", top: "-36px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "4px", padding: "6px 8px", background: theme.uiBackground, borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: `1px solid ${theme.uiBorder}`, zIndex: "300" },
       children: colors.map((c) => {
         if (c === "reset") {
           const btn = h("button", {
@@ -50,25 +54,26 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
   }
 
   function makeSizeSlider(currentSize: number, onChange: (size: number) => void): HTMLElement {
+    const theme = state.theme;
     const panel = h("div", {
-      style: { position: "absolute", top: "-44px", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: "#fff", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: "300", whiteSpace: "nowrap" },
+      style: { position: "absolute", top: "-44px", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", background: theme.uiBackground, borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: `1px solid ${theme.uiBorder}`, zIndex: "300", whiteSpace: "nowrap" },
     });
     const slider = h("input", {
       attrs: { type: "range", min: "6", max: "30", step: "1" },
       style: { width: "100px" },
     }) as HTMLInputElement;
     slider.value = String(currentSize);
-    const label = h("span", { text: `${currentSize}px`, style: { fontSize: "11px", color: "#666", minWidth: "32px" } });
+    const muted = theme.variant === "dark" ? "rgba(255,255,255,0.5)" : "#666";
+    const label = h("span", { text: `${currentSize}px`, style: { fontSize: "11px", color: muted, minWidth: "32px" } });
     slider.addEventListener("input", () => {
       const v = parseInt(slider.value, 10);
       label.textContent = `${v}px`;
       onChange(v);
     });
-    // Prevent pointer events from reaching the canvas during slider interaction
     panel.addEventListener("pointerdown", (e) => e.stopPropagation());
-    panel.appendChild(h("span", { text: "A", style: { fontSize: "10px", color: "#999" } }));
+    panel.appendChild(h("span", { text: "A", style: { fontSize: "10px", color: muted } }));
     panel.appendChild(slider);
-    panel.appendChild(h("span", { text: "A", style: { fontSize: "16px", fontWeight: "600", color: "#555" } }));
+    panel.appendChild(h("span", { text: "A", style: { fontSize: "16px", fontWeight: "600", color: theme.foreground } }));
     panel.appendChild(label);
     return panel;
   }
@@ -78,29 +83,33 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     if (!popupEl || !activePopup) return;
     const target = e.target as HTMLElement;
     if (popupEl.contains(target)) return;
-    // Check if click is on the button that opened it (toggle behavior)
     if (popupWrapper?.contains(target)) return;
     closePopup();
   });
 
   function makeAlignMenu(state: DrawingState): HTMLElement {
+    const theme = state.theme;
     const btnStyle: Partial<CSSStyleDeclaration> = {
       width: "26px", height: "26px", border: "none", borderRadius: "4px",
-      background: "transparent", cursor: "pointer", fontSize: "13px",
+      background: "transparent", cursor: "pointer",
       display: "flex", alignItems: "center", justifyContent: "center",
-      padding: "0",
+      padding: "0", color: theme.foreground,
     };
-    const items: { icon: string; title: string; action: () => void }[] = [
-      { icon: "\u2b06", title: "Align top", action: () => state.alignSelected("top") },
-      { icon: "\u2b07", title: "Align bottom", action: () => state.alignSelected("bottom") },
-      { icon: "\u2b05", title: "Align left", action: () => state.alignSelected("left") },
-      { icon: "\u27a1", title: "Align right", action: () => state.alignSelected("right") },
-      { icon: "\u2195", title: "Distribute vertically", action: () => state.distributeSelected("vertical") },
-      { icon: "\u2194", title: "Distribute horizontally", action: () => state.distributeSelected("horizontal") },
+    const items: { iconName: string; title: string; action: () => void }[] = [
+      { iconName: "align-top", title: "Align top", action: () => state.alignSelected("top") },
+      { iconName: "align-bottom", title: "Align bottom", action: () => state.alignSelected("bottom") },
+      { iconName: "align-left", title: "Align left", action: () => state.alignSelected("left") },
+      { iconName: "align-right", title: "Align right", action: () => state.alignSelected("right") },
+      { iconName: "align-vertical-spacing", title: "Distribute vertically", action: () => state.distributeSelected("vertical") },
+      { iconName: "align-horizontal-spacing", title: "Distribute horizontally", action: () => state.distributeSelected("horizontal") },
     ];
     const panel = h("div", {
-      style: { position: "absolute", top: "-40px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "2px", padding: "4px 6px", background: "#fff", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb", zIndex: "300" },
-      children: items.map((it) => h("button", { text: it.icon, title: it.title, style: { ...btnStyle }, onClick: it.action })),
+      style: { position: "absolute", top: "-40px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "2px", padding: "4px 6px", background: theme.uiBackground, borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: `1px solid ${theme.uiBorder}`, zIndex: "300" },
+      children: items.map((it) => {
+        const btn = h("button", { title: it.title, style: { ...btnStyle }, onClick: it.action });
+        btn.appendChild(icon(it.iconName, 18));
+        return btn;
+      }),
     });
     panel.addEventListener("pointerdown", (e) => e.stopPropagation());
     return panel;
@@ -116,7 +125,6 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
   }
 
   function update() {
-    // Preserve popup state across rebuilds
     const savedPopup = activePopup;
     clearChildren(container);
     popupEl = null;
@@ -131,11 +139,9 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const selected = state.shapes.filter((s) => state.selectedIds.has(s.id));
     if (selected.length === 0) { container.style.display = "none"; return; }
 
-    // Don't show toolbar for pocketed items
     const allPocketed = selected.every((s) => s.pocketed);
     if (allPocketed) { container.style.display = "none"; return; }
 
-    // Check if selected shapes are pocketed (use screen bounds for positioning)
     const pocketLayout = computePocketLayout(state.shapes, state.canvasWidth, state.fontFamily);
     const pocketScreenMap = new Map<string, { minX: number; minY: number }>();
     for (const entry of pocketLayout.entries) {
@@ -177,25 +183,27 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
 
     if (multiSelect) {
       const wrapper = h("div", { style: { position: "relative" } });
-      wrapper.appendChild(makeIconBtn("\ud83d\udcd0", "Align / Distribute", () => {
+      wrapper.appendChild(makeIconBtn("align", "Align / Distribute", () => {
         togglePopup("align", wrapper, () => makeAlignMenu(state));
       }));
       container.appendChild(wrapper);
       if (savedPopup === "align") togglePopup("align", wrapper, () => makeAlignMenu(state));
     }
-    if (hasText) container.appendChild(makeIconBtn("\ud83d\udccb", "Move to shelf", onMoveToShelf));
+    if (hasText) container.appendChild(makeIconBtn("move-to-shelf", "Move to shelf", onMoveToShelf));
 
     if (hasImage && selected.length === 1) {
       const isCropping = state.croppingImageId === selected[0].id;
-      container.appendChild(makeIconBtn("\u2702\ufe0f", isCropping ? "Finish crop" : "Crop image", () => {
-        if (isCropping) state.stopCropping();
-        else state.startCropping(selected[0].id);
+      const theme = state.theme;
+      container.appendChild(h("button", {
+        title: isCropping ? "Finish crop" : "Crop image", text: "\u2702\ufe0f",
+        style: { width: "28px", height: "28px", border: "none", borderRadius: "6px", background: "transparent", cursor: "pointer", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", color: theme.foreground },
+        onClick: () => { if (isCropping) state.stopCropping(); else state.startCropping(selected[0].id); },
       }));
     }
 
     if (hasColorable) {
       const wrapper = h("div", { style: { position: "relative" } });
-      wrapper.appendChild(makeIconBtn("\ud83d\udd8d\ufe0f", "Text color", () => {
+      wrapper.appendChild(makeIconBtn("text-color", "Text color", () => {
         togglePopup("color", wrapper, () => makePalette(TEXT_COLORS, (c) => {
           state.changeSelectedColor(c === "reset" ? "black" : c);
           closePopup();
@@ -210,7 +218,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
 
     if (hasBgable) {
       const wrapper = h("div", { style: { position: "relative" } });
-      wrapper.appendChild(makeIconBtn("\ud83e\udea3", "Background", () => {
+      wrapper.appendChild(makeIconBtn("background-color", "Background", () => {
         togglePopup("bg", wrapper, () => makePalette(BACKGROUND_COLORS, (c) => {
           state.changeSelectedBackground(c);
           closePopup();
@@ -225,7 +233,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
 
     if (hasText) {
       const wrapper = h("div", { style: { position: "relative" } });
-      wrapper.appendChild(makeIconBtn("\ud83d\udd0d", "Text size", () => {
+      wrapper.appendChild(makeIconBtn("text-size", "Text size", () => {
         const textShape = selected.find((s) => s.type === "text");
         const currentSize = textShape && textShape.type === "text" ? textShape.fontSize : 18;
         togglePopup("size", wrapper, () => makeSizeSlider(currentSize, (size) => {
@@ -233,7 +241,6 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
         }));
       }));
       container.appendChild(wrapper);
-      // Restore size slider if it was open
       if (savedPopup === "size") {
         const textShape = selected.find((s) => s.type === "text");
         const currentSize = textShape && textShape.type === "text" ? textShape.fontSize : 18;
@@ -243,7 +250,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
       }
     }
 
-    container.appendChild(makeIconBtn("\ud83d\uddd1", "Delete", () => state.deleteSelected()));
+    container.appendChild(makeIconBtn("trash", "Delete", () => state.deleteSelected()));
   }
 
   state.addEventListener("change", update);

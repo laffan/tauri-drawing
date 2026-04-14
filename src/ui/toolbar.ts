@@ -1,15 +1,16 @@
 import type { DrawingState } from "../state";
 import type { Tool } from "../types";
 import { h } from "./dom-helpers";
+import { icon } from "./icons";
 import { createBookmarksPanel } from "./bookmarks-panel";
 
-interface ToolDef { icon: string; label: string; tool: Tool | "brainstorm"; shortcut: string }
+interface ToolDef { iconName: string; label: string; tool: Tool | "brainstorm"; shortcut: string }
 
 const TOOLS: ToolDef[] = [
-  { icon: "👆", label: "Select", tool: "select", shortcut: "1" },
-  { icon: "T", label: "Text", tool: "text", shortcut: "T" },
-  { icon: "\ud83e\uddfa", label: "Drag Area", tool: "drag-area", shortcut: "A" },
-  { icon: "💡", label: "Brainstorm", tool: "brainstorm", shortcut: "B" },
+  { iconName: "select", label: "Select", tool: "select", shortcut: "1" },
+  { iconName: "text", label: "Text", tool: "text", shortcut: "T" },
+  { iconName: "drag-area", label: "Drag Area", tool: "drag-area", shortcut: "A" },
+  { iconName: "brainstorm", label: "Brainstorm", tool: "brainstorm", shortcut: "B" },
 ];
 
 export function createToolbar(state: DrawingState): HTMLElement {
@@ -18,8 +19,8 @@ export function createToolbar(state: DrawingState): HTMLElement {
   function makeBtn(def: ToolDef): HTMLButtonElement {
     const btn = h("button", {
       title: `${def.label} (${def.shortcut})`,
-      style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px", transition: "all 0.15s" },
-      children: [h("span", { text: def.icon, style: { fontSize: "16px" } })],
+      style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", background: "transparent", transition: "all 0.15s" },
+      children: [icon(def.iconName, 20)],
       onClick: () => {
         if (def.tool === "brainstorm") {
           state.brainstormMode = !state.brainstormMode;
@@ -39,21 +40,23 @@ export function createToolbar(state: DrawingState): HTMLElement {
 
   const spacer = h("div", { style: { flex: "1" } });
 
-  // Undo/redo buttons (useful on touch devices without keyboards)
   const undoBtn = h("button", {
-    title: "Undo (Cmd+Z)", text: "\u21A9",
-    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "16px", background: "rgba(255,255,255,0.9)", opacity: "0.4" },
+    title: "Undo (Cmd+Z)",
+    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", background: "transparent", opacity: "0.4" },
+    children: [icon("undo", 20)],
     onClick: () => state.undo(),
   });
   const redoBtn = h("button", {
-    title: "Redo (Cmd+Shift+Z)", text: "\u21AA",
-    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "16px", background: "rgba(255,255,255,0.9)", opacity: "0.4" },
+    title: "Redo (Cmd+Shift+Z)",
+    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", background: "transparent", opacity: "0.4" },
+    children: [icon("redo", 20)],
     onClick: () => state.redo(),
   });
 
   const resetBtn = h("button", {
-    title: "Reset view", text: "\u267b\ufe0f",
-    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "14px", background: "rgba(255,255,255,0.9)" },
+    title: "Reset view",
+    style: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: "8px", cursor: "pointer", background: "transparent" },
+    children: [icon("reset", 20)],
     onClick: () => { state.camera = { x: 0, y: 0, zoom: 1 }; state.notify("camera"); },
   });
 
@@ -63,7 +66,7 @@ export function createToolbar(state: DrawingState): HTMLElement {
     style: {
       position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
       display: "flex", alignItems: "center", gap: "4px", padding: "6px 8px",
-      background: "rgba(255,255,255,0.95)", borderRadius: "12px",
+      borderRadius: "12px",
       boxShadow: "0 2px 12px rgba(0,0,0,0.12)", zIndex: "100", userSelect: "none",
       backdropFilter: "blur(8px)",
     },
@@ -78,15 +81,22 @@ export function createToolbar(state: DrawingState): HTMLElement {
   });
 
   function update() {
+    const theme = state.theme;
+    container.style.background = theme.uiBackground;
+
+    const fg = theme.foreground;
+    const accent = theme.accent;
+
     for (const [key, btn] of buttons) {
       const active = key === "brainstorm" ? state.brainstormMode : (state.tool === key && !state.brainstormMode);
-      btn.style.backgroundColor = active ? "#4285f4" : "rgba(255,255,255,0.9)";
-      btn.style.color = active ? "#fff" : "#333";
-      btn.style.fontWeight = active ? "600" : "400";
-      btn.style.boxShadow = active ? "0 2px 8px rgba(66,133,244,0.3)" : "0 1px 3px rgba(0,0,0,0.1)";
+      btn.style.color = active ? accent : fg;
+      btn.style.opacity = active ? "1" : "0.6";
     }
-    undoBtn.style.opacity = state.canUndo ? "1" : "0.4";
-    redoBtn.style.opacity = state.canRedo ? "1" : "0.4";
+    undoBtn.style.color = fg;
+    redoBtn.style.color = fg;
+    resetBtn.style.color = fg;
+    undoBtn.style.opacity = state.canUndo ? "0.8" : "0.3";
+    redoBtn.style.opacity = state.canRedo ? "0.8" : "0.3";
   }
 
   state.addEventListener("change", update);

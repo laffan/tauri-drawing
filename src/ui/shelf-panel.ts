@@ -2,6 +2,7 @@ import type { DrawingState } from "../state";
 import type { Shape } from "../types";
 import { getShapeBounds } from "../utils";
 import { h, clearChildren } from "./dom-helpers";
+import { icon } from "./icons";
 
 interface ShelfNode {
   id: string; type: string; label: string; excerpt: string;
@@ -168,7 +169,12 @@ export function createShelfPanel(
     // Pinned
     if (pinnedItems.length > 0) {
       const section = h("div", { style: { padding: "4px 8px", borderBottom: `1px solid ${border}` } });
-      section.appendChild(h("div", { text: "\ud83d\udccc Pinned", style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
+      const pinnedHeader = h("div", { style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0", display: "flex", alignItems: "center", gap: "4px" } });
+      const pinnedIcon = icon("pin", 11);
+      pinnedIcon.style.color = muted;
+      pinnedHeader.appendChild(pinnedIcon);
+      pinnedHeader.appendChild(document.createTextNode("Pinned"));
+      section.appendChild(pinnedHeader);
       pinnedItems.forEach((n) => section.appendChild(makeNodeRow(n, true)));
       content.appendChild(section);
     }
@@ -191,9 +197,17 @@ export function createShelfPanel(
     if (node.type === "drag-area") {
       row.appendChild(h("button", { text: collapsed.has(node.id) ? "\u25b8" : "\u25be", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", color: muted, padding: "0", width: "16px" }, onClick: () => { if (collapsed.has(node.id)) collapsed.delete(node.id); else collapsed.add(node.id); rebuild(); } }));
     }
-    const prefix = node.pocketed ? "\ud83d\udc56 " : (node.type === "image" ? "\ud83d\uddbc " : "");
-    row.appendChild(h("span", { text: prefix + node.label, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }, onClick: () => state.focusShape(node.shapeId) }));
-    row.appendChild(h("button", { text: isPinned ? "\ud83d\udccc" : "\ud83d\udccd", title: isPinned ? "Unpin" : "Pin", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5", color: muted }, onClick: () => { if (isPinned) pinned.delete(node.id); else pinned.add(node.id); rebuild(); } }));
+    if (node.pocketed) {
+      const pocketIcon = icon("pocket", 12);
+      pocketIcon.style.flexShrink = "0";
+      pocketIcon.style.color = muted;
+      pocketIcon.style.marginRight = "2px";
+      row.appendChild(pocketIcon);
+    }
+    row.appendChild(h("span", { text: node.label, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }, onClick: () => state.focusShape(node.shapeId) }));
+    const pinBtn = h("button", { title: isPinned ? "Unpin" : "Pin", style: { border: "none", background: "none", cursor: "pointer", padding: "0", opacity: isPinned ? "0.8" : "0.4", color: isPinned ? theme.accent : muted, display: "flex", alignItems: "center", width: "16px", height: "16px" }, onClick: () => { if (isPinned) pinned.delete(node.id); else pinned.add(node.id); rebuild(); } });
+    pinBtn.appendChild(icon("pin", 12));
+    row.appendChild(pinBtn);
     return row;
   }
 
