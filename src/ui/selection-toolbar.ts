@@ -12,6 +12,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
   let activePopup: "color" | "bg" | "size" | "align" | null = null;
   let popupEl: HTMLElement | null = null;
   let popupWrapper: HTMLElement | null = null;
+  let isRenamingImage = false;
 
   function closePopup() {
     if (popupEl) { popupEl.remove(); popupEl = null; }
@@ -125,6 +126,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
   }
 
   function update() {
+    if (isRenamingImage) return;
     const savedPopup = activePopup;
     clearChildren(container);
     popupEl = null;
@@ -268,6 +270,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
       });
 
       function commitRename() {
+        isRenamingImage = false;
         nameEl.removeAttribute("contenteditable");
         nameEl.style.color = theme.foreground;
         nameEl.style.outline = "none";
@@ -283,6 +286,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
       nameEl.addEventListener("click", (e) => {
         e.stopPropagation();
         if (nameEl.getAttribute("contenteditable") === "true") return;
+        isRenamingImage = true;
         nameEl.setAttribute("contenteditable", "true");
         nameEl.style.color = theme.accent;
         nameEl.style.outline = "none";
