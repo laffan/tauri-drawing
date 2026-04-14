@@ -486,7 +486,7 @@ export class DrawingState extends EventTarget {
       if (canvas) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
-        if (screenX > canvas.clientWidth - POCKET_ZONE_WIDTH) {
+        if (screenX < POCKET_ZONE_WIDTH) {
           this.shapes = this.shapes.map((s) =>
             this.selectedIds.has(s.id) ? { ...s, pocketed: true } : s,
           );

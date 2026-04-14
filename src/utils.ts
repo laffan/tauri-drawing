@@ -379,8 +379,11 @@ function shiftShape(shape: Shape, dx: number, dy: number): Shape {
 
 // === Pocket ===
 
-/** Width of the pocket drop zone on the right edge of the canvas. */
+/** Width of the pocket drop zone on the left edge of the canvas. */
 export const POCKET_ZONE_WIDTH = 80;
+
+/** Width of the visible pocket tray strip on the left edge. */
+export const POCKET_TRAY_WIDTH = 20;
 
 export interface PocketEntry {
   shapes: Shape[];
@@ -396,10 +399,10 @@ export interface PocketLayout {
 }
 
 /**
- * Compute screen-space layout for pocketed shapes, stacked vertically on the right.
+ * Compute screen-space layout for pocketed shapes, stacked vertically on the left.
  * Groups shapes by groupId and includes children of pocketed drag areas.
  */
-export function computePocketLayout(allShapes: Shape[], canvasWidth: number, fontFamily?: string): PocketLayout {
+export function computePocketLayout(allShapes: Shape[], _canvasWidth: number, fontFamily?: string): PocketLayout {
   const pocketed = allShapes.filter((s) => s.pocketed);
   if (pocketed.length === 0) return { entries: [], pocketedIds: new Set() };
 
@@ -434,7 +437,7 @@ export function computePocketLayout(allShapes: Shape[], canvasWidth: number, fon
     groups.push(group);
   }
 
-  const MARGIN_RIGHT = 34;
+  const MARGIN_LEFT = 4;
   const MARGIN_TOP = 60;
   const GAP = 16;
   const MAX_SIZE = 140;
@@ -460,7 +463,7 @@ export function computePocketLayout(allShapes: Shape[], canvasWidth: number, fon
     const sw = width * scale;
     const sh = height * scale;
 
-    const x = canvasWidth - MARGIN_RIGHT - sw;
+    const x = MARGIN_LEFT;
 
     entries.push({
       shapes: group,

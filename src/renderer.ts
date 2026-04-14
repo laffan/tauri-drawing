@@ -1,7 +1,7 @@
 import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
 import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import type { CanvasTheme } from "./themes";
-import { computePocketLayout, getShapeBounds, POCKET_ZONE_WIDTH } from "./utils";
+import { computePocketLayout, getShapeBounds, POCKET_ZONE_WIDTH, POCKET_TRAY_WIDTH } from "./utils";
 import type { PocketEntry } from "./utils";
 import { parseText } from "./markdown";
 
@@ -106,13 +106,14 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   ctx.restore();
 
-  // Draw pocket zone indicator (visible during drags)
-  if (state.isDragging) {
-    drawPocketZone(ctx, w, h, theme);
+  // Draw pocket tray on left edge (always visible when items are pocketed, or during drag)
+  const hasPocketed = pocketLayout.entries.length > 0;
+  if (hasPocketed || state.isDragging) {
+    drawPocketTray(ctx, w, h, state.isDragging, hasPocketed);
   }
 
   // Draw pocketed shapes at fixed screen positions (outside camera transform)
-  if (pocketLayout.entries.length > 0) {
+  if (hasPocketed) {
     drawPocketEntries(ctx, pocketLayout.entries, selectedIds, theme, state.fontFamily, imageCache);
   }
 
@@ -364,15 +365,29 @@ function drawCropOverlay(ctx: CanvasRenderingContext2D, shape: ImageShape, zoom:
   ctx.restore();
 }
 
-function drawPocketZone(ctx: CanvasRenderingContext2D, w: number, h: number, theme: CanvasTheme) {
-  const x = w - POCKET_ZONE_WIDTH;
-  const gradient = ctx.createLinearGradient(x, 0, w, 0);
-  const tint = theme.variant === "dark" ? "255,255,255" : "0,0,0";
-  gradient.addColorStop(0, "transparent");
-  gradient.addColorStop(1, `rgba(${tint},0.06)`);
+const POCKET_BLUE = "rgba(66, 153, 225, 0.18)";
+const POCKET_BLUE_HIGHLIGHT = "rgba(66, 153, 225, 0.30)";
+
+function drawPocketTray(ctx: CanvasRenderingContext2D, _w: number, h: number, isDragging: boolean, hasPocketed: boolean) {
   ctx.save();
-  ctx.fillStyle = gradient;
-  ctx.fillRect(x, 0, POCKET_ZONE_WIDTH, h);
+  // 20px light blue strip on the left edge
+  ctx.fillStyle = isDragging ? POCKET_BLUE_HIGHLIGHT : POCKET_BLUE;
+  ctx.fillRect(0, 0, POCKET_TRAY_WIDTH, h);
+  // Softer extended highlight during drags so users see the drop zone
+  if (isDragging) {
+    const gradient = ctx.createLinearGradient(POCKET_TRAY_WIDTH, 0, POCKET_ZONE_WIDTH, 0);
+    gradient.addColorStop(0, "rgba(66, 153, 225, 0.10)");
+    gradient.addColorStop(1, "transparent");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(POCKET_TRAY_WIDTH, 0, POCKET_ZONE_WIDTH - POCKET_TRAY_WIDTH, h);
+  } else if (hasPocketed) {
+    // Subtle fade when items are present
+    const gradient = ctx.createLinearGradient(POCKET_TRAY_WIDTH, 0, POCKET_TRAY_WIDTH + 6, 0);
+    gradient.addColorStop(0, "rgba(66, 153, 225, 0.06)");
+    gradient.addColorStop(1, "transparent");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(POCKET_TRAY_WIDTH, 0, 6, h);
+  }
   ctx.restore();
 }
 
@@ -382,19 +397,19 @@ function drawPocketEntries(
 ) {
   for (const entry of entries) {
     const b = entry.screenBounds;
-    const pad = 10;
+    const pad = 6;
 
-    // Card background
+    // Light blue card background
     ctx.save();
-    ctx.fillStyle = theme.uiBackground;
-    ctx.shadowColor = "rgba(0,0,0,0.12)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = POCKET_BLUE;
+    ctx.shadowColor = "rgba(0,0,0,0.08)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 1;
     ctx.beginPath();
-    roundRect(ctx, b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2, 8);
+    roundRect(ctx, b.minX - pad, b.minY - pad, b.maxX - b.minX + pad * 2, b.maxY - b.minY + pad * 2, 6);
     ctx.fill();
     ctx.shadowColor = "transparent";
-    ctx.strokeStyle = theme.uiBorder;
+    ctx.strokeStyle = "rgba(66, 153, 225, 0.25)";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
