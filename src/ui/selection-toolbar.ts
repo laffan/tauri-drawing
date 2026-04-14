@@ -302,6 +302,7 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
         sel?.addRange(range);
       });
       nameEl.addEventListener("keydown", (e) => {
+        e.stopPropagation();
         if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); commitRename(); }
       });
       nameEl.addEventListener("blur", commitRename);
