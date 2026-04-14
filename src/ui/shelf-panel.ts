@@ -26,13 +26,13 @@ export function createShelfPanel(
 
   const grip = h("button", {
     text: "\u2039",
-    style: { width: "24px", height: "60px", position: "absolute", left: "0", top: "50%", transform: "translateY(-50%)", border: "none", borderRight: "none", borderRadius: "4px 0 0 4px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: "10" },
+    style: { width: "24px", height: "100%", position: "absolute", left: "0", top: "0", border: "none", borderRight: "none", borderRadius: "12px 0 0 12px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: "10" },
     onClick: () => { isOpen = !isOpen; rebuild(); },
   });
   panel.appendChild(grip);
 
   const content = h("div", {
-    style: { marginLeft: "24px", flex: "1", display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" },
+    style: { marginLeft: "24px", flex: "1", display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px 20px 20px 0" },
   });
   panel.appendChild(content);
 
