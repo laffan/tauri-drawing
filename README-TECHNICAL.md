@@ -22,9 +22,10 @@ src/
   undo-manager.ts         Snapshot-based undo/redo (100 entries)
   utils.ts                Geometry, hit testing, text measurement, alignment, pocket layout
   ui/
+    icons.ts               SVG icon system — inline path data with currentColor theming
     dom-helpers.ts         h() element builder, setStyles(), clearChildren()
     toolbar.ts             Bottom floating tool bar (tools, bookmarks, undo/redo)
-    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop, shelf)
+    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop, rename, shelf)
     bookmarks-panel.ts     Camera bookmark dropdown (mounted in bottom toolbar)
     file-panel.ts          Save/open buttons (native dialogs)
     settings-panel.ts      Settings modal (appearance, theme, font, background, shortcuts)
@@ -91,7 +92,7 @@ The pocket is a temporary stash on the left edge of the viewport. Users hold-dra
 - The renderer skips pocketed shapes during normal canvas drawing (no ghost). They are drawn only at their screen-space pocket position on a light-blue card background.
 - Hit testing in `state.ts` checks pocket screen bounds first (via `findPocketedShapeAtScreen` in `state-helpers.ts`), then falls back to normal canvas hit testing with pocketed shapes filtered out.
 - Dragging from the pocket: on pointer-down the item is selected and a pending drag is prepared; on first pointer-move the item is unpocketed, repositioned to the cursor, and a standard canvas drag begins. If released back in the pocket zone, the item is re-pocketed.
-- In the shelf panel, pocketed items are shown with a 👖 icon prefix.
+- In the shelf panel, pocketed items are shown with a pocket SVG icon prefix.
 
 ### Safe area handling
 
@@ -100,6 +101,21 @@ The canvas extends full-bleed (`viewport-fit=cover`). Individual UI elements app
 ### Settings modal mounting
 
 The settings overlay is mounted directly on the root container (not inside the top bar) to avoid iOS WebKit's broken `position: fixed` inside parents with CSS `transform`. The `createSettingsPanel` function accepts an optional `mountOverlayOn` element for this purpose.
+
+### SVG icon system
+
+All UI icons are SVG, defined as inline path strings in `ui/icons.ts`. Each icon uses `stroke="currentColor"` so the color is inherited from the parent element's CSS `color` property. The `icon(name, size)` function returns an `HTMLElement` wrapper containing the SVG.
+
+- **Toolbar**: Active tool uses `theme.accent` color; inactive uses `theme.foreground`.
+- **Selection toolbar**: Icons inherit `theme.foreground` from the button.
+- **Shelf panel**: Pin, pocket, and drag-area icons use the muted color; pinned items use `theme.accent`.
+- **Bookmarks panel**: Update icon animates a 360-degree spin on click as confirmation feedback.
+
+To add a new icon, add an entry to the `PATHS` record in `icons.ts` with the SVG inner paths using `stroke="currentColor"`, then call `icon("name", size)` where needed.
+
+### Group selection highlight
+
+When grouped shapes (sharing a `groupId`) are selected, the renderer draws a light dashed bounding box around the entire group in addition to individual selection highlights. This is rendered at 30% opacity with wider padding (14px vs 6px) to visually distinguish it from per-shape selection.
 
 ## Patterns
 

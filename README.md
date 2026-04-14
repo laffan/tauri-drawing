@@ -17,15 +17,16 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - Drag-and-drop images (png, jpg, webp) and text files (txt, md) onto the canvas
 - Paste images from clipboard
 - Aspect-ratio-locked resizing
-- Non-destructive crop: ✂️ button enters crop mode with red handles, drag to pan the crop window, click outside to confirm
+- Non-destructive crop: crop button enters crop mode with red handles, drag to pan the crop window, click outside to confirm
+- Inline rename: click the filename in the selection toolbar to edit; extension is preserved automatically
 - Auto-selected immediately after drop
 
 **Organization**
-- Drag Areas (🧺): dashed container regions that group shapes
-- Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup
+- Drag Areas: dashed container regions that group shapes
+- Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup; grouped items show a light dashed bounding box when selected
 - Alignment & distribution: top/bottom/left/right align + horizontal/vertical distribute
 - Pocket: hold-drag (1 second) any item to the light-blue tray on the left edge to stash it temporarily; drag it back out from the pocket to place it elsewhere on the canvas. Pocketed items have no toolbar controls while in the pocket.
-- Shelf Panel: right-side panel with search, #tag filtering, pinning within the list, and drag-to-restore. Items moved to the shelf appear under a "Shelved" header; pocketed items show a 👖 icon.
+- Shelf Panel: right-side panel with search, #tag filtering, pinning within the list, and drag-to-restore. Items moved to the shelf appear under a "Shelved" header; pocketed items show a pocket icon.
 
 **Brainstorm Mode**
 - Click anywhere to open a persistent text input
@@ -37,7 +38,7 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - Background patterns: grid, dot grid, or blank with spacing and opacity controls
 - 16 themes from thememirror.net (8 light, 8 dark) with light/dark/auto appearance
 - Undo/redo (Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z) with 100-entry snapshot history
-- Canvas bookmarks: save and restore named camera positions
+- Canvas bookmarks: save, restore, and update named camera positions; dropdown closes on click-outside or Escape
 - Full-bleed canvas extends into safe areas; UI buttons respect safe zone insets
 
 **File I/O**
