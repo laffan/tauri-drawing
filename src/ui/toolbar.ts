@@ -1,6 +1,7 @@
 import type { DrawingState } from "../state";
 import type { Tool } from "../types";
 import { h } from "./dom-helpers";
+import { createBookmarksPanel } from "./bookmarks-panel";
 
 interface ToolDef { icon: string; label: string; tool: Tool | "brainstorm"; shortcut: string }
 
@@ -56,6 +57,8 @@ export function createToolbar(state: DrawingState): HTMLElement {
     onClick: () => { state.camera = { x: 0, y: 0, zoom: 1 }; state.notify("camera"); },
   });
 
+  const bookmarksEl = createBookmarksPanel(state);
+
   const container = h("div", {
     style: {
       position: "absolute", bottom: "calc(16px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
@@ -67,9 +70,10 @@ export function createToolbar(state: DrawingState): HTMLElement {
     children: [
       ...TOOLS.map(makeBtn),
       spacer,
+      bookmarksEl,
+      resetBtn,
       undoBtn,
       redoBtn,
-      resetBtn,
     ],
   });
 

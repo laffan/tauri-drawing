@@ -36,8 +36,7 @@ interface ShapeBase {
   color: string;
   parentId?: string; // id of drag-area parent, if any
   groupId?: string;  // shared id for logically grouped shapes
-  pinned?: boolean;  // true if shape is pinned to screen left edge
-  pinnedExpanded?: boolean; // true if pinned image is showing full size
+  pocketed?: boolean;  // true if shape is pocketed to right-side zone
 }
 
 export interface DrawShape extends ShapeBase {

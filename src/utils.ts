@@ -377,9 +377,12 @@ function shiftShape(shape: Shape, dx: number, dy: number): Shape {
   }
 }
 
-// === Pinning ===
+// === Pocket ===
 
-export interface PinnedEntry {
+/** Width of the pocket drop zone on the right edge of the canvas. */
+export const POCKET_ZONE_WIDTH = 80;
+
+export interface PocketEntry {
   shapes: Shape[];
   offsetX: number;
   offsetY: number;
@@ -387,28 +390,28 @@ export interface PinnedEntry {
   screenBounds: Bounds;
 }
 
-export interface PinnedLayout {
-  entries: PinnedEntry[];
-  pinnedIds: Set<string>;
+export interface PocketLayout {
+  entries: PocketEntry[];
+  pocketedIds: Set<string>;
 }
 
 /**
- * Compute screen-space layout for pinned shapes, stacked vertically on the left.
- * Groups shapes by groupId and includes children of pinned drag areas.
+ * Compute screen-space layout for pocketed shapes, stacked vertically on the right.
+ * Groups shapes by groupId and includes children of pocketed drag areas.
  */
-export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): PinnedLayout {
-  const pinned = allShapes.filter((s) => s.pinned);
-  if (pinned.length === 0) return { entries: [], pinnedIds: new Set() };
+export function computePocketLayout(allShapes: Shape[], canvasWidth: number, fontFamily?: string): PocketLayout {
+  const pocketed = allShapes.filter((s) => s.pocketed);
+  if (pocketed.length === 0) return { entries: [], pocketedIds: new Set() };
 
   const groups: Shape[][] = [];
   const seen = new Set<string>();
 
-  for (const s of pinned) {
+  for (const s of pocketed) {
     if (seen.has(s.id)) continue;
     const group: Shape[] = [];
 
     if (s.groupId) {
-      for (const ps of pinned) {
+      for (const ps of pocketed) {
         if (ps.groupId === s.groupId && !seen.has(ps.id)) {
           seen.add(ps.id);
           group.push(ps);
@@ -419,7 +422,7 @@ export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): Pi
       group.push(s);
     }
 
-    // Include children of pinned drag areas
+    // Include children of pocketed drag areas
     const dragAreaIds = new Set(group.filter((g) => g.type === "drag-area").map((g) => g.id));
     for (const child of allShapes) {
       if (child.parentId && dragAreaIds.has(child.parentId) && !seen.has(child.id)) {
@@ -431,14 +434,14 @@ export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): Pi
     groups.push(group);
   }
 
-  const MARGIN_LEFT = 20;
+  const MARGIN_RIGHT = 34;
   const MARGIN_TOP = 60;
-  const GAP = 54;
-  const THUMB_MAX = 120;
+  const GAP = 16;
+  const MAX_SIZE = 140;
   let y = MARGIN_TOP;
 
-  const entries: PinnedEntry[] = [];
-  const pinnedIds = new Set(seen);
+  const entries: PocketEntry[] = [];
+  const pocketedIds = new Set(seen);
 
   for (const group of groups) {
     let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
@@ -453,22 +456,22 @@ export function computePinnedLayout(allShapes: Shape[], fontFamily?: string): Pi
     const width = gMaxX - gMinX;
     const height = gMaxY - gMinY;
 
-    // Thumbnail scale for solo pinned images that aren't expanded
-    const isImageThumb = group.length === 1 && group[0].type === "image" && !group[0].pinnedExpanded;
-    const scale = isImageThumb ? Math.min(1, THUMB_MAX / Math.max(width, height)) : 1;
+    const scale = Math.min(1, MAX_SIZE / Math.max(width, height));
     const sw = width * scale;
     const sh = height * scale;
 
+    const x = canvasWidth - MARGIN_RIGHT - sw;
+
     entries.push({
       shapes: group,
-      offsetX: MARGIN_LEFT - gMinX * scale,
+      offsetX: x - gMinX * scale,
       offsetY: y - gMinY * scale,
       scale,
-      screenBounds: { minX: MARGIN_LEFT, minY: y, maxX: MARGIN_LEFT + sw, maxY: y + sh },
+      screenBounds: { minX: x, minY: y, maxX: x + sw, maxY: y + sh },
     });
 
     y += sh + GAP;
   }
 
-  return { entries, pinnedIds };
+  return { entries, pocketedIds };
 }

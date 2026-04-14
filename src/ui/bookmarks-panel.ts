@@ -14,7 +14,7 @@ export function createBookmarksPanel(state: DrawingState): HTMLElement {
   container.appendChild(toggleBtn);
 
   const dropdown = h("div", {
-    style: { position: "absolute", top: "100%", left: "0", marginTop: "4px", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", border: "1px solid #e5e7eb", width: "220px", overflow: "hidden", display: "none", zIndex: "300" },
+    style: { position: "absolute", bottom: "100%", left: "0", marginBottom: "4px", background: "#fff", borderRadius: "8px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", border: "1px solid #e5e7eb", width: "220px", overflow: "hidden", display: "none", zIndex: "300" },
   });
   container.appendChild(dropdown);
 

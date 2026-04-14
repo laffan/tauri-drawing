@@ -1,6 +1,6 @@
 import type { DrawingState } from "../state";
 import { COLOR_PALETTE, BACKGROUND_COLORS, TEXT_COLORS } from "../types";
-import { canvasToScreen, computePinnedLayout, getShapeBounds } from "../utils";
+import { canvasToScreen, computePocketLayout, getShapeBounds } from "../utils";
 import { h, clearChildren } from "./dom-helpers";
 
 export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () => void): HTMLElement {
@@ -131,27 +131,31 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const selected = state.shapes.filter((s) => state.selectedIds.has(s.id));
     if (selected.length === 0) { container.style.display = "none"; return; }
 
-    // Check if selected shapes are pinned (use screen bounds for positioning)
-    const pinnedLayout = computePinnedLayout(state.shapes, state.fontFamily);
-    const pinnedScreenMap = new Map<string, { minX: number; minY: number }>();
-    for (const entry of pinnedLayout.entries) {
+    // Don't show toolbar for pocketed items
+    const allPocketed = selected.every((s) => s.pocketed);
+    if (allPocketed) { container.style.display = "none"; return; }
+
+    // Check if selected shapes are pocketed (use screen bounds for positioning)
+    const pocketLayout = computePocketLayout(state.shapes, state.canvasWidth, state.fontFamily);
+    const pocketScreenMap = new Map<string, { minX: number; minY: number }>();
+    for (const entry of pocketLayout.entries) {
       for (const s of entry.shapes) {
-        pinnedScreenMap.set(s.id, { minX: entry.screenBounds.minX, minY: entry.screenBounds.minY });
+        pocketScreenMap.set(s.id, { minX: entry.screenBounds.minX, minY: entry.screenBounds.minY });
       }
     }
-    const allSelectedPinned = selected.every((s) => pinnedLayout.pinnedIds.has(s.id));
+    const allSelectedPocketed = selected.every((s) => pocketLayout.pocketedIds.has(s.id));
 
     let screenMinX: number, screenMinY: number;
-    if (allSelectedPinned) {
+    if (allSelectedPocketed) {
       screenMinX = Infinity; screenMinY = Infinity;
       for (const s of selected) {
-        const sb = pinnedScreenMap.get(s.id);
+        const sb = pocketScreenMap.get(s.id);
         if (sb) { screenMinX = Math.min(screenMinX, sb.minX); screenMinY = Math.min(screenMinY, sb.minY); }
       }
     } else {
       let minX = Infinity, minY = Infinity;
       for (const s of selected) {
-        if (pinnedLayout.pinnedIds.has(s.id)) continue;
+        if (pocketLayout.pocketedIds.has(s.id)) continue;
         const b = getShapeBounds(s);
         if (b.minX < minX) minX = b.minX;
         if (b.minY < minY) minY = b.minY;
@@ -169,7 +173,6 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
     const hasImage = selected.some((s) => s.type === "image");
     const hasColorable = selected.some((s) => s.type === "text");
     const hasBgable = selected.some((s) => s.type === "text" || s.type === "drag-area");
-    const hasPinnable = selected.some((s) => s.type === "text" || s.type === "drag-area" || s.type === "image");
     const multiSelect = selected.length > 1;
 
     if (multiSelect) {
@@ -238,11 +241,6 @@ export function createSelectionToolbar(state: DrawingState, onMoveToShelf: () =>
           state.changeSelectedFontSize(size);
         }));
       }
-    }
-
-    if (hasPinnable) {
-      const anyPinned = selected.some((s) => s.pinned);
-      container.appendChild(makeIconBtn("\uD83D\uDCCD", anyPinned ? "Unpin" : "Pin to side", () => state.toggleSelectedPinned()));
     }
 
     container.appendChild(makeIconBtn("\ud83d\uddd1", "Delete", () => state.deleteSelected()));

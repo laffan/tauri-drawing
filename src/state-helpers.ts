@@ -11,7 +11,7 @@ export async function openExternalUrl(url: string) {
 }
 import type { ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import { FONT_FAMILY, LINE_HEIGHT_RATIO } from "./types";
-import { computePinnedLayout, getMeasureCtx, hitTestShape, pointInBounds } from "./utils";
+import { computePocketLayout, getMeasureCtx, hitTestShape, pointInBounds } from "./utils";
 import { parseLine, parseText } from "./markdown";
 import type { ResizeHandle } from "./state";
 
@@ -150,9 +150,9 @@ export function autoFitWidth(text: string, fontSize: number, constraintWidth: nu
   return maxW < cw ? Math.max(30, maxW + 8) : cw;
 }
 
-/** Hit-test screen point against pinned shapes (rendered in screen space). Returns shape IDs if hit. */
-export function findPinnedShapeAtScreen(screenPt: Point, shapes: Shape[], fontFamily?: string): string[] | null {
-  const layout = computePinnedLayout(shapes, fontFamily);
+/** Hit-test screen point against pocketed shapes (rendered in screen space). Returns shape IDs if hit. */
+export function findPocketedShapeAtScreen(screenPt: Point, shapes: Shape[], canvasWidth: number, fontFamily?: string): string[] | null {
+  const layout = computePocketLayout(shapes, canvasWidth, fontFamily);
   for (const entry of layout.entries) {
     if (pointInBounds(screenPt, entry.screenBounds, 6)) {
       return entry.shapes.map((s) => s.id);

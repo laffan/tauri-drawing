@@ -6,6 +6,7 @@ import { h, clearChildren } from "./dom-helpers";
 interface ShelfNode {
   id: string; type: string; label: string; excerpt: string;
   color: string | null; shapeId: string; parentId: string | undefined; depth: number;
+  pocketed: boolean;
 }
 
 export function createShelfPanel(
@@ -58,14 +59,14 @@ export function createShelfPanel(
         const sorted = [...textChildren].sort((a, b) => { const ab = getShapeBounds(a); const bb = getShapeBounds(b); return ab.minY - bb.minY || ab.minX - bb.minX; });
         if (sorted[0].type === "text") { const tx = sorted[0].text.substring(0, 40); name = `\ud83e\uddfa ${tx}${sorted[0].text.length > 40 ? "..." : ""}`; }
       }
-      result.push({ id: da.id, type: "drag-area", label: name, excerpt: "", color: da.type === "drag-area" ? da.strokeColor : null, shapeId: da.id, parentId: undefined, depth: 0 });
+      result.push({ id: da.id, type: "drag-area", label: name, excerpt: "", color: da.type === "drag-area" ? da.strokeColor : null, shapeId: da.id, parentId: undefined, depth: 0, pocketed: !!da.pocketed });
       if (!collapsed.has(da.id)) {
         const sortedChildren = [...children].sort((a, b) => { const ab = getShapeBounds(a); const bb = getShapeBounds(b); return ab.minY - bb.minY || ab.minX - bb.minX; });
         for (const child of sortedChildren) {
           if (child.type === "text") {
-            result.push({ id: child.id, type: "text", label: child.text.substring(0, 50) + (child.text.length > 50 ? "..." : ""), excerpt: child.text, color: child.backgroundColor || null, shapeId: child.id, parentId: da.id, depth: 1 });
+            result.push({ id: child.id, type: "text", label: child.text.substring(0, 50) + (child.text.length > 50 ? "..." : ""), excerpt: child.text, color: child.backgroundColor || null, shapeId: child.id, parentId: da.id, depth: 1, pocketed: !!child.pocketed });
           } else if (child.type === "image") {
-            result.push({ id: child.id, type: "image", label: child.name || "Image", excerpt: "", color: null, shapeId: child.id, parentId: da.id, depth: 1 });
+            result.push({ id: child.id, type: "image", label: child.name || "Image", excerpt: "", color: null, shapeId: child.id, parentId: da.id, depth: 1, pocketed: !!child.pocketed });
           }
         }
       }
@@ -75,9 +76,9 @@ export function createShelfPanel(
     for (const s of rootOthers) {
       if (s.type === "text") {
         if (!s.text.trim()) continue;
-        result.push({ id: s.id, type: "text", label: s.text.substring(0, 50) + (s.text.length > 50 ? "..." : ""), excerpt: s.text, color: s.backgroundColor || null, shapeId: s.id, parentId: undefined, depth: 0 });
+        result.push({ id: s.id, type: "text", label: s.text.substring(0, 50) + (s.text.length > 50 ? "..." : ""), excerpt: s.text, color: s.backgroundColor || null, shapeId: s.id, parentId: undefined, depth: 0, pocketed: !!s.pocketed });
       } else if (s.type === "image") {
-        result.push({ id: s.id, type: "image", label: s.name || "Image", excerpt: "", color: null, shapeId: s.id, parentId: undefined, depth: 0 });
+        result.push({ id: s.id, type: "image", label: s.name || "Image", excerpt: "", color: null, shapeId: s.id, parentId: undefined, depth: 0, pocketed: !!s.pocketed });
       }
     }
     return result;
@@ -139,7 +140,7 @@ export function createShelfPanel(
     // Shelf items
     if (opts.shelfItems.length > 0) {
       const section = h("div", { style: { padding: "4px 8px", borderBottom: `1px solid ${border}` } });
-      section.appendChild(h("div", { text: "Shelf Items", style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
+      section.appendChild(h("div", { text: "Shelved", style: { fontSize: "11px", fontWeight: "600", color: muted, textTransform: "uppercase", letterSpacing: "0.5px", padding: "4px 0" } }));
       opts.shelfItems.forEach((text, i) => {
         const row = h("div", {
           style: { display: "flex", alignItems: "center", gap: "4px", padding: "4px 0", fontSize: "13px", borderBottom: `1px solid ${subtleBorder}`, cursor: "grab", color: fg },
@@ -190,7 +191,8 @@ export function createShelfPanel(
     if (node.type === "drag-area") {
       row.appendChild(h("button", { text: collapsed.has(node.id) ? "\u25b8" : "\u25be", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", color: muted, padding: "0", width: "16px" }, onClick: () => { if (collapsed.has(node.id)) collapsed.delete(node.id); else collapsed.add(node.id); rebuild(); } }));
     }
-    row.appendChild(h("span", { text: (node.type === "image" ? "\ud83d\uddbc " : "") + node.label, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }, onClick: () => state.focusShape(node.shapeId) }));
+    const prefix = node.pocketed ? "\ud83d\udc56 " : (node.type === "image" ? "\ud83d\uddbc " : "");
+    row.appendChild(h("span", { text: prefix + node.label, style: { flex: "1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }, onClick: () => state.focusShape(node.shapeId) }));
     row.appendChild(h("button", { text: isPinned ? "\ud83d\udccc" : "\ud83d\udccd", title: isPinned ? "Unpin" : "Pin", style: { border: "none", background: "none", cursor: "pointer", fontSize: "10px", padding: "0", opacity: "0.5", color: muted }, onClick: () => { if (isPinned) pinned.delete(node.id); else pinned.add(node.id); rebuild(); } }));
     return row;
   }

@@ -4,7 +4,6 @@ import { render } from "./renderer";
 import { bindInputEvents } from "./input-handler";
 import { createToolbar } from "./ui/toolbar";
 import { createSelectionToolbar } from "./ui/selection-toolbar";
-import { createBookmarksPanel } from "./ui/bookmarks-panel";
 import { createShelfPanel } from "./ui/shelf-panel";
 import { createTextEditor } from "./ui/text-editor";
 import { createBrainstormInput } from "./ui/brainstorm-input";
@@ -107,7 +106,7 @@ export class NotesCanvas {
         position: "absolute", top: "calc(12px + env(safe-area-inset-top))", left: "50%", transform: "translateX(-50%)",
         zIndex: "200", display: "flex", gap: "4px", pointerEvents: "auto",
       },
-      children: [createBookmarksPanel(this.state), createSettingsPanel(this.state, container), createFilePanel(this.state)],
+      children: [createSettingsPanel(this.state, container), createFilePanel(this.state)],
     });
     topBar.addEventListener("pointerdown", (e) => e.stopPropagation());
     container.appendChild(topBar);
@@ -163,6 +162,7 @@ export class NotesCanvas {
         backgroundPattern: this.state.backgroundPattern,
         gridSpacing: this.state.gridSpacing,
         gridOpacity: this.state.gridOpacity,
+        isDragging: this.state.isActiveDrag,
       });
       this._rafId = requestAnimationFrame(loop);
     };

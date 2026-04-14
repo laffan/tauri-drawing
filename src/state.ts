@@ -12,11 +12,11 @@ import { UndoManager } from "./undo-manager";
 import type { AppearanceMode, CanvasTheme } from "./themes";
 import { THEMES, getEffectiveVariant } from "./themes";
 import {
-  autoFitWidth, findShapeAtPoint, findPinnedShapeAtScreen,
+  autoFitWidth, findShapeAtPoint, findPocketedShapeAtScreen,
   hitTestLink, normalizeBox, moveShape,
   applyResize, applyCropResize, openExternalUrl,
 } from "./state-helpers";
-import { computePinnedLayout } from "./utils";
+import { computePocketLayout, POCKET_ZONE_WIDTH } from "./utils";
 
 export interface EditingText {
   shapeId: string | null;
@@ -62,6 +62,9 @@ export class DrawingState extends EventTarget {
   gridSpacing = 25;
   gridOpacity = 0.15;
   fontFamily = "Inter";
+
+  get canvasWidth(): number { return this.canvasEl?.clientWidth || window.innerWidth; }
+  get isActiveDrag(): boolean { return this._isDragging; }
 
   get theme(): CanvasTheme {
     const variant = getEffectiveVariant(this.appearanceMode);
@@ -117,6 +120,10 @@ export class DrawingState extends EventTarget {
   private _resizeStart: Point = { x: 0, y: 0 };
   private _resizeOrigShape: Shape | null = null;
   private _resizeOrigBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+
+  // Pocket drag state
+  private _pocketDragPending = false;
+  private _pocketDragScreenStart: Point = { x: 0, y: 0 };
 
   // Batched notification
   private _pendingKeys = new Set<string>();
@@ -272,26 +279,22 @@ export class DrawingState extends EventTarget {
         return;
       }
 
-      // Check pinned shapes first (screen-space hit test)
-      const pinnedHit = findPinnedShapeAtScreen(screenPt, this.shapes, this.fontFamily);
-      if (pinnedHit) {
-        // Toggle thumbnail for pinned images on click
-        if (!e.shiftKey && pinnedHit.length === 1) {
-          const hit = this.shapes.find((s) => s.id === pinnedHit[0]);
-          if (hit?.type === "image" && hit.pinned) {
-            this.shapes = this.shapes.map((s) => s.id === hit.id ? { ...s, pinnedExpanded: !s.pinnedExpanded || undefined } : s);
-            this.notify("shapes");
-          }
-        }
+      // Check pocketed shapes first (screen-space hit test)
+      const pocketHit = findPocketedShapeAtScreen(screenPt, this.shapes, canvas.clientWidth, this.fontFamily);
+      if (pocketHit) {
         const next = e.shiftKey ? new Set(this.selectedIds) : new Set<string>();
-        const allSel = e.shiftKey && pinnedHit.every((id) => next.has(id));
-        pinnedHit.forEach((id) => allSel ? next.delete(id) : next.add(id));
+        const allSel = e.shiftKey && pocketHit.every((id) => next.has(id));
+        pocketHit.forEach((id) => allSel ? next.delete(id) : next.add(id));
         this.selectedIds = next;
         this.notify("selectedIds");
+        // Prepare for drag-from-pocket
+        this._pocketDragPending = true;
+        this._pocketDragScreenStart = screenPt;
+        canvas.setPointerCapture(e.pointerId);
         return;
       }
-      const { pinnedIds } = computePinnedLayout(this.shapes, this.fontFamily);
-      const hitShape = findShapeAtPoint(canvasPt, this.shapes.filter((s) => !pinnedIds.has(s.id)));
+      const { pocketedIds } = computePocketLayout(this.shapes, canvas.clientWidth, this.fontFamily);
+      const hitShape = findShapeAtPoint(canvasPt, this.shapes.filter((s) => !pocketedIds.has(s.id)));
 
       // Cmd+click on a link: open in browser/app
       if (hitShape && hitShape.type === "text" && (e.metaKey || e.ctrlKey)) {
@@ -377,6 +380,33 @@ export class DrawingState extends EventTarget {
       return;
     }
 
+    // Drag from pocket: on first movement, unpocket shapes and place at cursor
+    if (this._pocketDragPending && this.selectedIds.size > 0) {
+      const dx = screenPt.x - this._pocketDragScreenStart.x;
+      const dy = screenPt.y - this._pocketDragScreenStart.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        // Compute bounding box of selected shapes to center them on cursor
+        let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+        for (const s of this.shapes) {
+          if (!this.selectedIds.has(s.id)) continue;
+          const b = getShapeBounds(s);
+          gMinX = Math.min(gMinX, b.minX); gMinY = Math.min(gMinY, b.minY);
+          gMaxX = Math.max(gMaxX, b.maxX); gMaxY = Math.max(gMaxY, b.maxY);
+        }
+        const offsetX = canvasPt.x - (gMinX + gMaxX) / 2;
+        const offsetY = canvasPt.y - (gMinY + gMaxY) / 2;
+        this.shapes = this.shapes.map((s) => {
+          if (!this.selectedIds.has(s.id)) return s;
+          return moveShape({ ...s, pocketed: undefined }, offsetX, offsetY);
+        });
+        this._pocketDragPending = false;
+        this._isDragging = true;
+        this._dragStart = canvasPt;
+        this.notify("shapes");
+      }
+      return;
+    }
+
     if (this._isDragging && this.tool === "select") {
       const dx = canvasPt.x - this._dragStart.x;
       const dy = canvasPt.y - this._dragStart.y;
@@ -442,8 +472,32 @@ export class DrawingState extends EventTarget {
   handlePointerUp(e: PointerEvent) {
     if (this._isPanningActive) { this._isPanningActive = false; return; }
 
+    // Pocket drag pending: click without movement — just select, no move
+    if (this._pocketDragPending) {
+      this._pocketDragPending = false;
+      return;
+    }
+
     if (this._isDragging) {
       this._isDragging = false;
+
+      // Check if items should be pocketed (dropped in pocket zone on right edge)
+      const canvas = this.canvasEl;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        if (screenX > canvas.clientWidth - POCKET_ZONE_WIDTH) {
+          this.shapes = this.shapes.map((s) =>
+            this.selectedIds.has(s.id) ? { ...s, pocketed: true } : s,
+          );
+          this.selectedIds = new Set();
+          this.recordHistory();
+          this.notify("shapes");
+          this.notify("selectedIds");
+          return;
+        }
+      }
+
       const dragAreas = this.shapes.filter((s) => s.type === "drag-area");
       this.shapes = this.shapes.map((s) => {
         if (!this.selectedIds.has(s.id)) return s;
@@ -609,15 +663,14 @@ export class DrawingState extends EventTarget {
     this.notify("shapes");
   }
 
-  toggleSelectedPinned() {
-    const selected = this.shapes.filter((s) => this.selectedIds.has(s.id));
-    const pin = !selected.some((s) => s.pinned) || undefined;
+  unpocketSelected() {
     const ids = new Set<string>();
-    for (const s of selected) {
+    for (const s of this.shapes) {
+      if (!this.selectedIds.has(s.id)) continue;
       ids.add(s.id);
       if (s.groupId) this.shapes.forEach((gs) => { if (gs.groupId === s.groupId) ids.add(gs.id); });
     }
-    this.shapes = this.shapes.map((s) => ids.has(s.id) ? { ...s, pinned: pin, pinnedExpanded: undefined } : s);
+    this.shapes = this.shapes.map((s) => ids.has(s.id) ? { ...s, pocketed: undefined } : s);
     this.recordHistory();
     this.notify("shapes");
   }

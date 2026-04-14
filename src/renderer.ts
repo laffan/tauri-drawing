@@ -1,8 +1,8 @@
 import { FONT_FAMILY, LINE_HEIGHT_RATIO, COLOR_PALETTE } from "./types";
 import type { Camera, DragAreaShape, ImageShape, Point, SelectionBox, Shape, TextShape } from "./types";
 import type { CanvasTheme } from "./themes";
-import { computePinnedLayout, getShapeBounds } from "./utils";
-import type { PinnedEntry } from "./utils";
+import { computePocketLayout, getShapeBounds, POCKET_ZONE_WIDTH } from "./utils";
+import type { PocketEntry } from "./utils";
 import { parseText } from "./markdown";
 
 export interface RenderState {
@@ -19,6 +19,7 @@ export interface RenderState {
   gridSpacing: number;
   gridOpacity: number;
   fontFamily: string;
+  isDragging: boolean;
 }
 
 export function render(canvas: HTMLCanvasElement, state: RenderState): void {
@@ -46,9 +47,9 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
     drawBackground(ctx, camera, w, h, theme.foreground, backgroundPattern, gridSpacing, gridOpacity * 0.8);
   }
 
-  // Compute pinned layout once for this frame
-  const pinnedLayout = computePinnedLayout(shapes, state.fontFamily);
-  const pinnedIds = pinnedLayout.pinnedIds;
+  // Compute pocket layout once for this frame
+  const pocketLayout = computePocketLayout(shapes, w, state.fontFamily);
+  const pocketedIds = pocketLayout.pocketedIds;
 
   ctx.save();
   ctx.translate(camera.x, camera.y);
@@ -56,7 +57,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   for (const shape of shapes) {
     if (shape.type === "drag-area") {
-      if (pinnedIds.has(shape.id)) { ctx.save(); ctx.globalAlpha = 0.2; drawDragArea(ctx, shape); ctx.restore(); }
+      if (pocketedIds.has(shape.id)) { ctx.save(); ctx.globalAlpha = 0.2; drawDragArea(ctx, shape); ctx.restore(); }
       else drawDragArea(ctx, shape);
     }
   }
@@ -64,7 +65,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
   for (const shape of shapes) {
     if (shape.type === "drag-area") continue;
     if (shape.id === editingShapeId) continue;
-    const ghost = pinnedIds.has(shape.id);
+    const ghost = pocketedIds.has(shape.id);
     if (ghost) { ctx.save(); ctx.globalAlpha = 0.2; }
     if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
     else if (shape.type === "text") drawTextShape(ctx, shape, theme, state.fontFamily);
@@ -93,7 +94,7 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   if (selectedIds.size > 0) {
     for (const shape of shapes) {
-      if (selectedIds.has(shape.id) && !pinnedIds.has(shape.id)) {
+      if (selectedIds.has(shape.id) && !pocketedIds.has(shape.id)) {
         if (shape.id === state.croppingImageId && shape.type === "image") {
           drawCropOverlay(ctx, shape, camera.zoom);
         } else {
@@ -105,9 +106,14 @@ export function render(canvas: HTMLCanvasElement, state: RenderState): void {
 
   ctx.restore();
 
-  // Draw pinned shapes at fixed screen positions (outside camera transform)
-  if (pinnedLayout.entries.length > 0) {
-    drawPinnedEntries(ctx, pinnedLayout.entries, selectedIds, theme, state.fontFamily, imageCache);
+  // Draw pocket zone indicator (visible during drags)
+  if (state.isDragging) {
+    drawPocketZone(ctx, w, h, theme);
+  }
+
+  // Draw pocketed shapes at fixed screen positions (outside camera transform)
+  if (pocketLayout.entries.length > 0) {
+    drawPocketEntries(ctx, pocketLayout.entries, selectedIds, theme, state.fontFamily, imageCache);
   }
 
   if (selectionBox) drawSelectionBox(ctx, selectionBox, camera);
@@ -358,8 +364,20 @@ function drawCropOverlay(ctx: CanvasRenderingContext2D, shape: ImageShape, zoom:
   ctx.restore();
 }
 
-function drawPinnedEntries(
-  ctx: CanvasRenderingContext2D, entries: PinnedEntry[], selectedIds: Set<string>,
+function drawPocketZone(ctx: CanvasRenderingContext2D, w: number, h: number, theme: CanvasTheme) {
+  const x = w - POCKET_ZONE_WIDTH;
+  const gradient = ctx.createLinearGradient(x, 0, w, 0);
+  const tint = theme.variant === "dark" ? "255,255,255" : "0,0,0";
+  gradient.addColorStop(0, "transparent");
+  gradient.addColorStop(1, `rgba(${tint},0.06)`);
+  ctx.save();
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x, 0, POCKET_ZONE_WIDTH, h);
+  ctx.restore();
+}
+
+function drawPocketEntries(
+  ctx: CanvasRenderingContext2D, entries: PocketEntry[], selectedIds: Set<string>,
   theme: CanvasTheme, fontFamily: string, imageCache: Map<string, HTMLImageElement>,
 ) {
   for (const entry of entries) {
@@ -394,7 +412,7 @@ function drawPinnedEntries(
       else if (shape.type === "image") drawImageShape(ctx, shape, imageCache, false);
       else if (shape.type === "draw") drawStroke(ctx, shape.points, shape.color, shape.width);
     }
-    // Selection highlights for pinned shapes
+    // Selection highlights for pocketed shapes
     for (const shape of entry.shapes) {
       if (selectedIds.has(shape.id)) {
         drawSelectionHighlight(ctx, shape, 1 / entry.scale, theme.accent);
