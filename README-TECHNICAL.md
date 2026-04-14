@@ -11,7 +11,7 @@ src/
   main.ts                 Entry point — mounts NotesCanvas
   notes-canvas.ts         Public API class — orchestrates everything
   state.ts                DrawingState class — all app state + mutations
-  state-helpers.ts        Pure helper functions (find, resize, crop, link hit-test)
+  state-helpers.ts        Pure helper functions (find, resize, crop, link hit-test, autoFitWidth, pinned hit-test)
   renderer.ts             Canvas 2D draw functions (pure, no side effects)
   input-handler.ts        Wires native DOM events to state methods
   external-content.ts     Clipboard/drag-drop/file helpers
@@ -20,11 +20,11 @@ src/
   themes.ts               16 color themes + appearance mode (light/dark/auto)
   types.ts                Shape types, constants, color palettes
   undo-manager.ts         Snapshot-based undo/redo (100 entries)
-  utils.ts                Geometry, hit testing, text measurement, alignment
+  utils.ts                Geometry, hit testing, text measurement, alignment, pinned layout
   ui/
     dom-helpers.ts         h() element builder, setStyles(), clearChildren()
     toolbar.ts             Bottom floating tool bar
-    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop)
+    selection-toolbar.ts   Context toolbar above selected shapes (color, bg, size, align, crop, pin)
     bookmarks-panel.ts     Camera bookmark dropdown
     file-panel.ts          Save/open buttons (native dialogs)
     settings-panel.ts      Settings modal (appearance, theme, font, background, shortcuts)
@@ -79,6 +79,24 @@ Never mutate shapes, selection, camera, or tool state from UI components or inpu
 ### Undo/redo
 
 `UndoManager` in `undo-manager.ts` stores up to 100 shape snapshots. Call `state.recordHistory()` after each completed user action (not during continuous interactions like dragging). For drag/resize, record once on pointer-up.
+
+### Pinning
+
+Pinning attaches shapes to the left edge of the viewport, independent of camera pan/zoom. The shape's canvas position never changes — pinning only affects how and where it is rendered.
+
+- `ShapeBase.pinned` marks a shape as pinned. `ShapeBase.pinnedExpanded` controls the thumbnail toggle for pinned images.
+- `computePinnedLayout()` in `utils.ts` groups pinned shapes (by `groupId`, including drag-area children), computes screen-space positions stacked vertically on the left side, and returns a `PinnedLayout` with offsets, scale factors, screen bounds, and the full set of pinned shape IDs.
+- The renderer draws pinned shapes twice: once at 20% opacity at their original canvas position (inside camera transform), then at full opacity at their screen-space position (outside camera transform) on a card background.
+- Hit testing in `state.ts` checks pinned screen bounds first (via `findPinnedShapeAtScreen` in `state-helpers.ts`), then falls back to normal canvas hit testing with pinned shapes filtered out.
+- Pinned images render as thumbnails (max 120px) by default. Clicking a pinned image toggles `pinnedExpanded`, switching between thumbnail and full-size.
+
+### Safe area handling
+
+The canvas extends full-bleed (`viewport-fit=cover`). Individual UI elements apply `env(safe-area-inset-*)` via inline styles rather than using root-level padding, so the canvas renders behind notches/status bars while buttons stay accessible.
+
+### Settings modal mounting
+
+The settings overlay is mounted directly on the root container (not inside the top bar) to avoid iOS WebKit's broken `position: fixed` inside parents with CSS `transform`. The `createSettingsPanel` function accepts an optional `mountOverlayOn` element for this purpose.
 
 ## Patterns
 

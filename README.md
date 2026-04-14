@@ -19,11 +19,13 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - Aspect-ratio-locked resizing
 - Non-destructive crop: ✂️ button enters crop mode with red handles, drag to pan the crop window, click outside to confirm
 - Auto-selected immediately after drop
+- Pinnable: pinned images show as thumbnails, click to toggle full size
 
 **Organization**
 - Drag Areas (🧺): dashed container regions that group shapes
 - Grouping: Cmd/Ctrl+G to group, Cmd/Ctrl+Shift+G to ungroup
 - Alignment & distribution: top/bottom/left/right align + horizontal/vertical distribute
+- Pinning: 📍 button pins text, images, groups, or drag areas to the left edge of the window, ignoring canvas pan/zoom; original position shows a ghost at 20% opacity; unpinning restores the item
 - Shelf Panel: right-side panel with search, #tag filtering, pinning, and drag-to-restore
 
 **Brainstorm Mode**
@@ -37,6 +39,7 @@ An infinite canvas for visual note-taking, built with vanilla TypeScript and Can
 - 16 themes from thememirror.net (8 light, 8 dark) with light/dark/auto appearance
 - Undo/redo (Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z) with 100-entry snapshot history
 - Canvas bookmarks: save and restore named camera positions
+- Full-bleed canvas extends into safe areas; UI buttons respect safe zone insets
 
 **File I/O**
 - Save/open `.note` files (zip archives containing JSON + images folder)
